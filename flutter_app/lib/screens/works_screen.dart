@@ -132,7 +132,7 @@ class _WorksScreenState extends State<WorksScreen> {
       children: [
         PageHeading(
           'My works',
-          subtitle: 'Your ideas, ready to build on.',
+          subtitle: 'Open, share, or import a build.',
           actions: [
             IconButton(
               tooltip: 'Import build',
@@ -168,8 +168,8 @@ class _WorksScreenState extends State<WorksScreen> {
               if (works.isEmpty) {
                 return EmptyState(
                   icon: Icons.view_in_ar_rounded,
-                  title: 'Make your first creation',
-                  message: 'Build something small. Make it your own.',
+                  title: 'No saved builds yet',
+                  message: 'Start a build to save it here.',
                   action: FilledButton.icon(
                     onPressed: () => _run(_open),
                     icon: const Icon(Icons.add_rounded),

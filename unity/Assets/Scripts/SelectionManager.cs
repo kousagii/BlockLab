@@ -3,199 +3,70 @@ using UnityEngine.EventSystems;
 
 public class SelectionManager : MonoBehaviour
 {
-    [Header("UI Reference")]
-    public PropertiesUIManager uiManager; 
-
-    [Header("Grid & Movement Settings")]
-    public float floorHeight = 0f; 
-
-    public static bool isDraggingBlock = false;
-
-    private Transform _grabbedObject;
-    private BlockData _grabbedBlockData; 
-    private float _zDistanceToCamera;
-    private Vector3 _dragOffset;
-
-    private BlockData _selectedBlock; 
-    private Vector3 _startDragPosition;
-
-   void Update()
-    {
-        // --- NEW: MULTI-TOUCH GUARD ---
-        // If there are two or more fingers on the screen, abort selection and dragging
-        // so the CameraHandler can safely take over for zooming/panning!
-        if (Input.touchCount > 1)
-        {
-            if (isDraggingBlock && _grabbedObject != null)
-            {
-                // Snap the block back to where it was before we accidentally grabbed it
-                _grabbedObject.position = _startDragPosition; 
-                
-                // Let go of the block
-                _grabbedObject = null; 
-                _grabbedBlockData = null; 
-                isDraggingBlock = false; 
-            }
-            return; // Skip the rest of the update so we don't process clicks
-        }
-
-        // 1. START GRABBING OR DESELECTING
-        if (Input.GetMouseButtonDown(0))
-        {
-            if (IsPointerOverUI()) return; 
-
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
-
-            if (Physics.Raycast(ray, out hit))
-            {
-                BlockData clickedBlock = hit.collider.GetComponentInParent<BlockData>();
-                
-                if (clickedBlock != null)
-                {
-                    if (_selectedBlock != null && _selectedBlock != clickedBlock)
-                    {
-                        Outline oldOutline = _selectedBlock.GetComponent<Outline>();
-                        if (oldOutline != null) oldOutline.enabled = false;
-                    }
-
-                    Outline newOutline = clickedBlock.GetComponent<Outline>();
-                    if (newOutline != null) newOutline.enabled = true;
-
-                    _selectedBlock = clickedBlock;
-
-                    if (uiManager != null) uiManager.OpenPanel(clickedBlock);
-
-                    _grabbedObject = clickedBlock.transform;
-                    _grabbedBlockData = clickedBlock; 
-                    isDraggingBlock = true; 
-
-                    _startDragPosition = _grabbedObject.position;
-                    
-                    _zDistanceToCamera = Camera.main.WorldToScreenPoint(_grabbedObject.position).z;
-                    Vector3 screenPosition = new Vector3(Input.mousePosition.x, Input.mousePosition.y, _zDistanceToCamera);
-                    _dragOffset = _grabbedObject.position - Camera.main.ScreenToWorldPoint(screenPosition);
-                }
+    public PropertiesUIManager uiManager;
+    public float floorHeight;
+    public static bool isDraggingBlock;
+    public BlockData SelectedBlock => _selectedBlock;
+    private BlockData _selectedBlock,_grabbed;
+    private Vector3 _startPosition,_offset;
+    private Plane _dragPlane;
+    private Vector2 _press;
+    private bool _dragMoved;
+    public static bool UiBlocked;
+    void Update() {
+        if(UiBlocked || CameraHandler.IsCameraLocked)return;
+        if(Input.touchCount>1){CancelDrag();return;}
+        if(Input.GetMouseButtonDown(0) && !OverUI()) {
+            if(Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition),out var hit) &&
+                hit.collider.GetComponentInParent<BlockData>() is BlockData block && !block.IsPreview) {
+                ForceSelectBlock(block);_grabbed=block;_startPosition=block.transform.position;
+                _dragPlane=new Plane(Vector3.up,hit.point);_offset=block.transform.position-hit.point;
+                _press=Input.mousePosition;_dragMoved=false;isDraggingBlock=true;
             }
         }
-
-        // 2. DRAGGING
-        if (Input.GetMouseButton(0) && _grabbedObject != null && _grabbedBlockData != null)
-        {
-            Vector3 currentScreenPos = new Vector3(Input.mousePosition.x, Input.mousePosition.y, _zDistanceToCamera);
-            Vector3 rawWorldPos = Camera.main.ScreenToWorldPoint(currentScreenPos) + _dragOffset;
-
-            float w = _grabbedBlockData.widthOrRadius;
-            float l = _grabbedBlockData.length;
-
-            if (_grabbedBlockData.shapeType == BlockShapeType.Cylinder) 
-            {
-                l = w;
-            } 
-            
-            float offsetX = (w / 2f) - 0.5f;
-            float offsetZ = (l / 2f) - 0.5f;
-
-            float snappedX = Mathf.Round(rawWorldPos.x - offsetX) + offsetX;
-            float snappedZ = Mathf.Round(rawWorldPos.z - offsetZ) + offsetZ;
-
-            float targetY = floorHeight;
-
-            Collider[] allColliders = _grabbedObject.GetComponentsInChildren<Collider>();
-            foreach (Collider col in allColliders) col.enabled = false;
-
-            Vector3 skyPosition = new Vector3(snappedX, 100f, snappedZ);
-            RaycastHit[] hits = Physics.RaycastAll(skyPosition, Vector3.down, 200f);
-
-            float bestY = floorHeight;
-            float mouseHeightLimit = rawWorldPos.y + 1.5f; 
-
-            foreach (RaycastHit hitItem in hits)
-            {
-                float surfaceHeight = hitItem.collider.bounds.max.y;
-
-                if (hitItem.normal.y > 0.99f && surfaceHeight <= mouseHeightLimit && surfaceHeight > bestY)
-                {
-                    bestY = surfaceHeight; 
-                }
+        if(Input.GetMouseButton(0) && _grabbed!=null) {
+            if(Vector2.Distance(_press,Input.mousePosition)>8)_dragMoved=true;
+            if(_dragMoved && _dragPlane.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition),out float distance)) {
+                var point=Camera.main.ScreenPointToRay(Input.mousePosition).GetPoint(distance)+_offset;
+                var old=_grabbed.transform.position;
+                if(BlockPlacement.TryPlace(_grabbed,point,Mathf.Max(floorHeight,_dragPlane.distance*-1)+1.5f,floorHeight)) {
+                    if(old!=_grabbed.transform.position)WorkspaceState.Edit();
+                } else FindObjectOfType<SandboxUIController>()?.ShowHint("No room here. Choose a flat surface or use Move.");
             }
-
-            targetY = bestY;
-
-            foreach (Collider col in allColliders) col.enabled = true;
-
-            _grabbedObject.position = new Vector3(snappedX, targetY, snappedZ);
         }
-
-        // 3. DROP BLOCK
-        if (Input.GetMouseButtonUp(0))
-        {
-            if (_grabbedObject != null && _grabbedObject.position != _startDragPosition)
-            {
-                 if (UndoManager.Instance != null)
-                     UndoManager.Instance.RecordCommand(new MoveCommand(_grabbedObject, _startDragPosition));
-            }
-
-            _grabbedObject = null; 
-            _grabbedBlockData = null; 
-            isDraggingBlock = false; 
-        }
+        if(Input.GetMouseButtonUp(0))FinishDrag();
     }
-
-    public void ForceSelectBlock(BlockData blockToSelect)
-    {
-        if (blockToSelect == null) return;
-
-        if (_selectedBlock != null && _selectedBlock != blockToSelect)
-        {
-            Outline oldOutline = _selectedBlock.GetComponent<Outline>();
-            if (oldOutline != null) oldOutline.enabled = false;
-        }
-        Outline newOutline = blockToSelect.GetComponent<Outline>();
-        if (newOutline != null) newOutline.enabled = true;
-
-        _selectedBlock = blockToSelect;
-
-        if (uiManager != null) uiManager.OpenPanel(blockToSelect);
+    public void FinishDrag() {
+        if(_grabbed!=null && _grabbed.transform.position!=_startPosition)
+            UndoManager.Instance?.RecordCommand(new MoveCommand(_grabbed.transform,_startPosition));
+        _grabbed=null;isDraggingBlock=false;_dragMoved=false;
     }
-
-    public void DeselectCurrent()
-    {
-        _grabbedObject = null; _grabbedBlockData = null; isDraggingBlock = false;
-        if (_selectedBlock != null)
-        {
-            Outline oldOutline = _selectedBlock.GetComponent<Outline>();
-            if (oldOutline != null) oldOutline.enabled = false;
-            _selectedBlock = null;
-        }
-
-        if (uiManager != null) 
-        {
-            uiManager.ClosePanel(); 
-        }
+    public void CancelDrag() {
+        if(_grabbed!=null){_grabbed.transform.position=_startPosition;Physics.SyncTransforms();}
+        _grabbed=null;isDraggingBlock=false;_dragMoved=false;
     }
-
-    private bool IsPointerOverUI()
-    {
-        if (EventSystem.current == null) return false;
-
-        if (Input.touchCount > 0)
-        {
-            for (int i = 0; i < Input.touchCount; i++)
-            {
-                // If any finger is currently touching a UI element, return true
-                if (EventSystem.current.IsPointerOverGameObject(Input.GetTouch(i).fingerId))
-                {
-                    return true;
-                }
-            }
-        }
-        
-        if (EventSystem.current.IsPointerOverGameObject())
-        {
-            return true;
-        }
-
-        return false;
+    public void ForceSelectBlock(BlockData block) {
+        if(block==null)return;
+        if(_selectedBlock!=null && _selectedBlock!=block)SetOutline(_selectedBlock,false);
+        _selectedBlock=block;SetOutline(block,true);uiManager?.OpenPanel(block);
+    }
+    static void SetOutline(BlockData block,bool enabled) {
+        var outline=block.GetComponent<Outline>();if(outline!=null)outline.enabled=enabled;
+    }
+    public void DeselectCurrent() {
+        CancelDrag();FindObjectOfType<MoveGizmo>()?.Cancel();
+        if(_selectedBlock!=null)SetOutline(_selectedBlock,false);
+        _selectedBlock=null;uiManager?.ClosePanel();
+    }
+    public void RefreshSelection() {
+        CancelDrag();
+        if(_selectedBlock==null || !_selectedBlock.gameObject.activeInHierarchy)DeselectCurrent();
+        else uiManager?.OpenPanel(_selectedBlock);
+    }
+    static bool OverUI() {
+        if(EventSystem.current==null)return false;
+        for(int i=0;i<Input.touchCount;i++)
+            if(EventSystem.current.IsPointerOverGameObject(Input.GetTouch(i).fingerId))return true;
+        return EventSystem.current.IsPointerOverGameObject();
     }
 }

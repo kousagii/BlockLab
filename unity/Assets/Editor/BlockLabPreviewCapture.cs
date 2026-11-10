@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,7 +13,7 @@ public static class BlockLabPreviewCapture
     static int _index,_frame;
     static bool _capturing, _prepared;
     static string _path;
-    static readonly string[] Names={"rail","shapes","objects","properties","rail","shapes","objects","properties","large-text"};
+    static readonly string[] Names={"rail","shapes","objects","properties","rail","shapes","objects","properties","large-text","colors","move","properties-large","white"};
     static BlockLabPreviewCapture() { EditorApplication.playModeStateChanged+=OnMode; }
     public static void Run() {
         BlockLabBuild.Configure();
@@ -63,16 +64,17 @@ public static class BlockLabPreviewCapture
             var ui=UnityEngine.Object.FindObjectOfType<SandboxUIController>();
             var selection=UnityEngine.Object.FindObjectOfType<SelectionManager>();
             selection.DeselectCurrent();ui.CloseDrawer();ui.ExpandTools();
-            bool dark=_index>=4;
-            if(_index==8)SetSize(320,700);
-            ui.SetAppearance("{\"mode\":\""+(dark?"dark":"light")+"\",\"textScale\":"+(_index==8?"2":"1")+",\"pixelRatio\":1}");
+            bool dark=_index>=4 && _index!=12;
+            if(_index==8 || _index==11)SetSize(320,700);
+            if(_index==9 || _index==12)SetSize(390,760);
+            ui.SetAppearance("{\"mode\":\""+(dark?"dark":"light")+"\",\"textScale\":"+(_index==8 || _index==11?"2":"1")+",\"pixelRatio\":1}");
             if(_index==0) {
                 var loader=ui.GetComponent<LoadManager>();
                 loader.BeginSession("{\"sessionId\":\"preview\",\"sceneDataJson\":\"\"}");
                 for(int i=0;i<3;i++) {
                     var block=UnityEngine.Object.Instantiate(loader.blockPrefabs[i]).GetComponent<BlockData>();
                     block.EnsureIdentity();block.name=new[]{"Cube 1","Triangular Prism 1","Cylinder 1"}[i];
-                    block.transform.position=new Vector3(i*2-2,.5f,0);
+                    BlockPlacement.TryPlace(block,new Vector3(i*2-2,0,0),1);
                     block.SetColor(new[]{SandboxStyle.Hex("E39817"),SandboxStyle.Hex("2858C6"),SandboxStyle.Hex("198574")}[i]);
                     ui.GetComponent<HierarchyManager>().AddBlockToList(block.gameObject);
                 }
@@ -80,7 +82,13 @@ public static class BlockLabPreviewCapture
             int kind=_index%4;
             if(kind==1 || _index==8)ui.ToggleShapes();
             if(kind==2)ui.ToggleObjects();
-            if(kind==3)selection.ForceSelectBlock(UnityEngine.Object.FindObjectOfType<BlockData>());
+            if(kind==3 || _index==9 || _index==10)selection.ForceSelectBlock(UnityEngine.Object.FindObjectsOfType<BlockData>().First(b=>b.shapeType==BlockShapeType.Cube));
+            if(_index==9)ui.ShowColors();
+            if(_index==10)ui.ShowMove();
+            if(_index==12) {
+                var white=UnityEngine.Object.FindObjectsOfType<BlockData>().First(b=>b.shapeType==BlockShapeType.Cube);
+                white.SetColor(Color.white);selection.ForceSelectBlock(white);
+            }
             string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../docs/screenshots"));
             Directory.CreateDirectory(output);
             _path=Path.Combine(output,"sandbox-"+Names[_index]+"-"+(dark?"dark":"light")+".png");

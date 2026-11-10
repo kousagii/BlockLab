@@ -41,7 +41,7 @@ public class CameraHandler : MonoBehaviour
 
     void Update()
     {
-        if (IsCameraLocked) return;
+        if (IsCameraLocked || SelectionManager.UiBlocked) return;
         if (SelectionManager.isDraggingBlock == true)
         {
             return;

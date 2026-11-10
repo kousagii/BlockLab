@@ -75,13 +75,13 @@ class _NameInputScreenState extends State<NameInputScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'A little shape.\nA big idea.',
+                  'Welcome to BlockLab',
                   style: Theme.of(context).textTheme.headlineMedium,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Build something that is yours.',
+                  'Enter your name to get started.',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 36),

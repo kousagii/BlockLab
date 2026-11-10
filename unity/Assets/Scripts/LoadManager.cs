@@ -100,6 +100,7 @@ public class LoadManager : MonoBehaviour
     {
         foreach (var selection in FindObjectsOfType<SelectionManager>()) selection.DeselectCurrent();
         SelectionManager.isDraggingBlock = false;
+        SelectionManager.UiBlocked = false;
         CameraHandler.IsCameraLocked = false;
         if (UndoManager.Instance != null) UndoManager.Instance.ClearHistory();
         foreach (var block in FindObjectsOfType<BlockData>(true))

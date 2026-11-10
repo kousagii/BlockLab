@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import '../models/scene_document.dart';
+import '../models/lesson.dart';
+import '../services/profile_service.dart';
+import 'lesson_guide.dart';
 import '../services/isar_service.dart';
 import '../services/unity_bridge.dart';
 import 'settings_screen.dart';
@@ -12,6 +15,8 @@ class SandboxScreen extends StatefulWidget {
   final String? initialBuildJson, buildName;
   final int? existingBuildId;
   final Future<void> Function(int id)? onSaved;
+  final Lesson? lesson;
+  final ProfileService? profile;
   const SandboxScreen({
     super.key,
     required this.isarService,
@@ -19,6 +24,8 @@ class SandboxScreen extends StatefulWidget {
     this.existingBuildId,
     this.buildName,
     this.onSaved,
+    this.lesson,
+    this.profile,
   });
   @override
   State<SandboxScreen> createState() => _SandboxScreenState();
@@ -32,6 +39,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
       _persisting = false,
       _dirty = false,
       _canUndo = false,
+      _canRedo = false,
       _allowPop = false;
   int? _buildId;
   @override
@@ -120,6 +128,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
         setState(() {
           _dirty = data['dirty'] == true;
           _canUndo = data['canUndo'] == true;
+          _canRedo = data['canRedo'] == true;
         });
       case 'ERROR':
         if (_bridge.started) {
@@ -236,7 +245,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Make yourself at home',
+              'Sandbox controls',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -332,11 +341,19 @@ class _SandboxScreenState extends State<SandboxScreen> {
                   );
                 }
                 if (value == 'help') _help();
+                if (value == 'redo') {
+                  sendToUnity('SaveLoadSystem', 'RequestRedo', '');
+                }
                 if (value == 'reset') {
                   sendToUnity('SaveLoadSystem', 'ResetView', '');
                 }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'redo',
+                  enabled: _bridge.started && _canRedo && !_saving,
+                  child: const Text('Redo'),
+                ),
                 const PopupMenuItem(value: 'help', child: Text('How to build')),
                 PopupMenuItem(
                   value: 'reset',
@@ -370,40 +387,67 @@ class _SandboxScreenState extends State<SandboxScreen> {
         ),
         body: SafeArea(
           top: false,
-          child: Stack(
-            fit: StackFit.expand,
+          child: Column(
             children: [
-              EmbedUnity(onMessageFromUnity: _onUnityMessage),
-              if (!_bridge.started)
-                ColoredBox(
-                  color: colors.surface,
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_error == null) const CircularProgressIndicator(),
-                          const SizedBox(height: 20),
-                          Text(
-                            _error ?? 'Opening your building workspace…',
-                            textAlign: TextAlign.center,
-                          ),
-                          if (_error != null)
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _error = null;
-                                });
-                                _connect();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+              if (widget.lesson != null && widget.profile != null)
+                LessonGuide(
+                  lesson: widget.lesson!,
+                  profile: widget.profile!,
+                  onModalChanged: (blocked) {
+                    if (_bridge.started) {
+                      sendToUnity(
+                        'SaveLoadSystem',
+                        'SetUiBlocked',
+                        blocked.toString(),
+                      );
+                    }
+                  },
+                  onComplete: () async {
+                    await widget.isarService.completeLesson(
+                      widget.lesson!.title,
+                    );
+                    await widget.profile!.completeLesson(widget.lesson!.id);
+                  },
                 ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    EmbedUnity(onMessageFromUnity: _onUnityMessage),
+                    if (!_bridge.started)
+                      ColoredBox(
+                        color: colors.surface,
+                        child: Center(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_error == null)
+                                  const CircularProgressIndicator(),
+                                const SizedBox(height: 20),
+                                Text(
+                                  _error ?? 'Opening your building workspace…',
+                                  textAlign: TextAlign.center,
+                                ),
+                                if (_error != null)
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _error = null;
+                                      });
+                                      _connect();
+                                    },
+                                    child: const Text('Retry'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

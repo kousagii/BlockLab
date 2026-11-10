@@ -26,7 +26,6 @@ public class UIDragItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         _preview=Instantiate(blockPrefab);
         var identity=_preview.GetComponent<BlockData>();
         if(identity!=null){identity.blockId=null;identity.EnsureIdentity();identity.IsPreview=true;}
-        foreach(var col in _preview.GetComponentsInChildren<Collider>()) col.enabled=false;
         _preview.name=blockPrefab.name+" "+(++_count);
         var renderer=_preview.GetComponentInChildren<Renderer>();
         if(renderer!=null){
@@ -44,12 +43,9 @@ public class UIDragItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         var plane=new Plane(Vector3.up,new Vector3(0,floorHeight,0));
         if(!plane.Raycast(_camera.ScreenPointToRay(data.position),out float distance))return;
         var point=_camera.ScreenPointToRay(data.position).GetPoint(distance);
-        float x=Mathf.Round(point.x),z=Mathf.Round(point.z),y=floorHeight+yOffset;
-        _valid=true;
-        if(Physics.Raycast(new Vector3(x,100,z),Vector3.down,out var hit)){
-            _valid=hit.normal.y>.99f;y=hit.point.y+yOffset;
-        }
-        _preview.transform.position=new Vector3(x,y,z);
+        var block=_preview.GetComponent<BlockData>();
+        _valid=block!=null && BlockPlacement.TryPlace(block,point,100,floorHeight);
+        if(!_valid)FindObjectOfType<SandboxUIController>()?.ShowHint("No room here. Drop the shape on a flat surface.");
     }
     public void OnEndDrag(PointerEventData data)
     {

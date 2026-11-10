@@ -58,11 +58,12 @@ public class PropertiesUIManager : MonoBehaviour
 
     public void OpenPanel(BlockData block)
     {
+        bool newSelection = _currentBlock != block;
         _recordedGesture = false;
         _currentBlock = block;
         if (blockNameLabel != null) blockNameLabel.text = block.name;
         propertiesPanel.SetActive(true);
-        FindObjectOfType<SandboxUIController>()?.ShowProperties();
+        FindObjectOfType<SandboxUIController>()?.ShowProperties(newSelection);
 
 
         if (colorPickerContainer != null) 
@@ -99,45 +100,24 @@ public class PropertiesUIManager : MonoBehaviour
         sliderHeight.SetValueWithoutNotify(block.height);
         sliderLength.SetValueWithoutNotify(block.length);
 
-        if(valWidthRadius != null) valWidthRadius.text = block.widthOrRadius.ToString("F0");
-        if(valHeight != null) valHeight.text = block.height.ToString("F0");
-        if(valLength != null) valLength.text = block.length.ToString("F0");
+        if(valWidthRadius != null) valWidthRadius.text = block.widthOrRadius.ToString("0.##");
+        if(valHeight != null) valHeight.text = block.height.ToString("0.##");
+        if(valLength != null) valLength.text = block.length.ToString("0.##");
     }
 
-    private void TryRecordSizeUndo() { RecordEdit(); }
-
-    public void OnWidthRadiusChanged(float val) 
-    { 
-        if(_currentBlock != null) { 
-            TryRecordSizeUndo(); 
-            _currentBlock.widthOrRadius = val; 
-            _currentBlock.ApplyDimensions(); 
+    private void Resize(float width,float height,float length) {
+        if(_currentBlock==null)return;
+        if(Mathf.Approximately(width,_currentBlock.widthOrRadius) && Mathf.Approximately(height,_currentBlock.height) && Mathf.Approximately(length,_currentBlock.length))return;
+        var before=_recordedGesture ? null : new WorkspaceSnapshotCommand();
+        if(_currentBlock.TryResize(width,height,length)) {
+            if(before!=null) { UndoManager.Instance?.RecordCommand(before);_recordedGesture=Input.GetMouseButton(0); }
             WorkspaceState.Edit();
-            if(valWidthRadius != null) valWidthRadius.text = val.ToString("F0"); 
-        } 
+        } else FindObjectOfType<SandboxUIController>()?.ShowHint("Not enough space. Move nearby blocks or keep the current size.");
+        ForceRefreshSizeUI(_currentBlock.widthOrRadius,_currentBlock.height,_currentBlock.length);
     }
-    
-    public void OnHeightChanged(float val) 
-    { 
-        if(_currentBlock != null) { 
-            TryRecordSizeUndo(); 
-            _currentBlock.height = val; // <--- NO MORE SWAPPING!
-            _currentBlock.ApplyDimensions(); 
-            WorkspaceState.Edit();
-            if(valHeight != null) valHeight.text = val.ToString("F0"); 
-        } 
-    }
-    
-    public void OnLengthChanged(float val) 
-    { 
-        if(_currentBlock != null) { 
-            TryRecordSizeUndo(); 
-            _currentBlock.length = val; // <--- NO MORE SWAPPING!
-            _currentBlock.ApplyDimensions(); 
-            WorkspaceState.Edit();
-            if(valLength != null) valLength.text = val.ToString("F0"); 
-        } 
-    }
+    public void OnWidthRadiusChanged(float value) { if(_currentBlock!=null)Resize(value,_currentBlock.height,_currentBlock.length); }
+    public void OnHeightChanged(float value) { if(_currentBlock!=null)Resize(_currentBlock.widthOrRadius,value,_currentBlock.length); }
+    public void OnLengthChanged(float value) { if(_currentBlock!=null)Resize(_currentBlock.widthOrRadius,_currentBlock.height,value); }
 
     public void ToggleColorPicker()
     {
@@ -175,7 +155,7 @@ public class PropertiesUIManager : MonoBehaviour
 
     public void OnFCPColorChanged(Color newColor)
     {
-        if (_currentBlock != null)
+        if (_currentBlock != null && _currentBlock.blockColor != newColor)
         {
             RecordEdit();
             _currentBlock.SetColor(newColor); 
@@ -188,15 +168,18 @@ public class PropertiesUIManager : MonoBehaviour
     {
         if (_currentBlock != null)
         {
-            UndoManager.Instance.RecordCommand(new DeleteCommand(_currentBlock.gameObject, hierarchyManager));
-            if (hierarchyManager != null) {
-                hierarchyManager.RemoveBlockFromList(_currentBlock.gameObject);
-            }
-            _currentBlock.gameObject.SetActive(false);
-            _currentBlock = null;
-            propertiesPanel.SetActive(false);
-            if (colorPickerContainer != null) colorPickerContainer.SetActive(false);
+            var command = new DeleteCommand(_currentBlock.gameObject, hierarchyManager);
+            UndoManager.Instance?.RecordCommand(command);
+            FindObjectOfType<SelectionManager>()?.DeselectCurrent();
+            command.Redo();
         }
+    }
+
+    public void HideColorPicker()
+    {
+        StopAllCoroutines();
+        if (fcp != null) fcp.onColorChange.RemoveListener(OnFCPColorChanged);
+        if (colorPickerContainer != null) colorPickerContainer.SetActive(false);
     }
 
     public void ForceRefreshColorUI(Color undoneColor)
@@ -217,9 +200,9 @@ public class PropertiesUIManager : MonoBehaviour
         sliderHeight.SetValueWithoutNotify(h);
         sliderLength.SetValueWithoutNotify(l);
 
-        if(valWidthRadius != null) valWidthRadius.text = w.ToString("F0");
-        if(valHeight != null) valHeight.text = h.ToString("F0");
-        if(valLength != null) valLength.text = l.ToString("F0");
+        if(valWidthRadius != null) valWidthRadius.text = w.ToString("0.##");
+        if(valHeight != null) valHeight.text = h.ToString("0.##");
+        if(valLength != null) valLength.text = l.ToString("0.##");
     }
 
     public void ClosePanel()

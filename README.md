@@ -5,8 +5,8 @@ BlockLab is an Android app for learning and creating with 3D building blocks. It
 ## Features
 
 - Build with Cube, Triangular Prism, Cylinder, Trapezoid and Half Cylinder shapes.
-- Move, resize, recolor and delete blocks, with undo and camera controls.
-- Follow seven guided lessons or create freely in the sandbox.
+- Move, resize, recolor and delete blocks, with undo, redo and X/Y/Z move handles.
+- Follow seven guided lessons directly in the sandbox or create freely.
 - Save and reopen editable builds, and share or import them as JSON.
 - Choose Light, Dark or System appearance.
 
@@ -56,7 +56,9 @@ Open **BlockLab** on the phone. This APK is debug-signed for testing.
 ## Using BlockLab
 
 1. Enter a name and choose **Start building**, or open **Lessons** for guided activities.
-2. Open **Shapes** and drag a shape sideways onto the grid. Select a block directly or through **Objects** to change its size and color.
+2. Open **Shapes** and drag a shape sideways onto the grid. Select a block directly or through **Objects**. Use **Size** for dimensions, **Color** for colors, and **Move** for X/Y/Z handles. Resizing carries supported blocks above it and stops if there is not enough space.
 3. Drag empty space to orbit, pinch to zoom, and move two fingers to pan. More controls are explained in **How to build** in the sandbox menu.
 4. Tap **Save** before leaving. Reopen creations in **Works**, where you can also rename, share, delete or import builds.
 5. Open **Settings** from Home or the sandbox menu to change the appearance.
+
+In a lesson, use the guide above the workspace to change steps or open a reference image. You can collapse it while building; your current step is saved.

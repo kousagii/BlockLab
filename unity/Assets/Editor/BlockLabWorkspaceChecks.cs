@@ -126,8 +126,19 @@ public static class BlockLabWorkspaceChecks
                     loader.BeginSession(JsonUtility.ToJson(new Request {sessionId = "new-session", sceneDataJson = ""}));
                     Require(SaveManager.Capture().blocks.Count == 0, "New session retained old blocks");
                     Require(!SelectionManager.isDraggingBlock && !CameraHandler.IsCameraLocked, "New session retained gesture locks");
-                    Debug.Log("BLOCKLAB_WORKSPACE_CHECKS_PASSED: real five-shape load/save, names, rotations, repeated session, invalid import, hierarchy, move, resize/color, add/delete undo, first selection and session cleanup.");
-                    ExitSafely(0);
+                    BlockLabGeometryChecks.Run();
+                    int waitFrame=Time.frameCount+3;
+                    EditorApplication.CallbackFunction checkGizmo=null;
+                    checkGizmo=()=> {
+                        if(Time.frameCount<waitFrame)return;
+                        EditorApplication.update-=checkGizmo;
+                        try {
+                            BlockLabGeometryChecks.CheckGizmo();
+                            Debug.Log("BLOCKLAB_WORKSPACE_CHECKS_PASSED: save/load, history, geometry, resize rollback, stacked support, and runtime gizmo.");
+                            ExitSafely(0);
+                        } catch(Exception error) {Debug.LogException(error);ExitSafely(1);}
+                    };
+                    EditorApplication.update+=checkGizmo;
                 }
                 catch (Exception error) { Debug.LogException(error); ExitSafely(1); }
             };

@@ -13,6 +13,18 @@ public class SandboxUIController : MonoBehaviour
     public Button shapesButton, objectsButton;
     public GameObject emptyObjects;
     public PropertiesUIManager propertiesManager;
+    public GameObject dimensionsContent, colorsContent;
+    public Button sizeTab, colorTab;
+    public RectTransform editorActions;
+    public Button editorUndo, editorRedo;
+    public Button moveTab;
+    public GameObject moveHelp;
+    public TMP_Text hint;
+    public int propertiesLayoutVersion;
+    private float _hintUntil;
+    private bool _showMove;
+    public bool MoveMode => _showMove && properties.gameObject.activeInHierarchy;
+    private bool _showColors;
     private bool _dark, _drawerOpen, _objects, _statePending, _toolsCollapsed;
     private float _textScale=1, _pixelRatio;
     private int _width, _height;
@@ -20,14 +32,15 @@ public class SandboxUIController : MonoBehaviour
     public bool DrawerOpen => _drawerOpen;
     public float TextScale => _textScale;
     [Serializable] private class Appearance { public string mode; public float textScale=1; public float pixelRatio; }
-    [Serializable] private class State { public string messageType="WORKSPACE_STATE"; public string sessionId; public bool dirty; public bool canUndo; public int revision; }
+    [Serializable] private class State { public string messageType="WORKSPACE_STATE"; public string sessionId; public bool dirty; public bool canUndo; public bool canRedo; public int revision; }
     void OnEnable() { WorkspaceState.Changed += QueueState; }
     void OnDisable() { WorkspaceState.Changed -= QueueState; }
-    void Start() { ApplyTheme(); Layout(); }
+    void Start() { ApplyTheme(); Layout(); UpdateHistoryButtons(); }
     void LateUpdate()
     {
+        if(hint!=null && hint.transform.parent.gameObject.activeSelf && Time.unscaledTime>_hintUntil)hint.transform.parent.gameObject.SetActive(false);
         if (_width!=Screen.width || _height!=Screen.height) Layout();
-        if (_statePending) { _statePending=false; PublishState(); }
+        if (_statePending) { _statePending=false; UpdateHistoryButtons(); PublishState(); }
     }
     private void QueueState() { _statePending=true; }
     public void SetAppearance(string json)
@@ -56,6 +69,7 @@ public class SandboxUIController : MonoBehaviour
         }
         foreach(var item in objectsContent.GetComponentsInChildren<Button>(true)) StyleHierarchyItem(item.gameObject);
         UpdateRail();
+        UpdateTabs();
     }
     public void Layout()
     {
@@ -87,18 +101,41 @@ public class SandboxUIController : MonoBehaviour
         close.offsetMin=new Vector2(-60,-header);close.offsetMax=new Vector2(-8,-8);
         bool wide=width>650 && width>height;
         if(wide) SetRect(properties,new Vector2(1,0),Vector2.one,new Vector2(-360,12),new Vector2(-12,-12));
-        else SetRect(properties,Vector2.zero,new Vector2(1,0),new Vector2(8,12),new Vector2(-8,12+Mathf.Min(350,height*.52f)));
+        else SetRect(properties,Vector2.zero,new Vector2(1,0),new Vector2(8,12),new Vector2(-8,12+Mathf.Min((_showMove?220:380)*_textScale,height*.65f)));
         propertiesManager.blockNameLabel.rectTransform.offsetMin=new Vector2(16,-header);
+        float deleteWidth=76+24*(_textScale-1);
+        propertiesManager.blockNameLabel.rectTransform.offsetMax=new Vector2(-deleteWidth-72,-8);
+        var propertyClose=properties.Find("CloseProperties").GetComponent<RectTransform>();
+        propertyClose.offsetMin=new Vector2(-60,-header);propertyClose.offsetMax=new Vector2(-8,-8);
+        var delete=properties.Find("DeleteBlock").GetComponent<RectTransform>();
+        SetRect(delete,new Vector2(1,1),Vector2.one,new Vector2(-deleteWidth-64,-header),new Vector2(-64,-8));
+        float tabsHeight=48*_textScale;
+        var tabs=properties.Find("PropertyTabs").GetComponent<RectTransform>();
+        SetRect(tabs,new Vector2(0,1),Vector2.one,new Vector2(12,-header-tabsHeight-4),new Vector2(-12,-header-4));
         var propertyScroll=properties.GetComponentInChildren<ScrollRect>(true);
-        ((RectTransform)propertyScroll.transform).offsetMax=new Vector2(-12,-(header+4));
+        ((RectTransform)propertyScroll.transform).offsetMax=new Vector2(-12,-(header+tabsHeight+12));
+        if(editorActions!=null) SetRect(editorActions,new Vector2(1,1),Vector2.one,
+            new Vector2(-Mathf.Min(width-112,176),-68),new Vector2(-8,-12));
         rail.gameObject.SetActive(!_toolsCollapsed && !(largeText && _drawerOpen));
+        var open=FindButton("OpenTools").GetComponent<RectTransform>();
+        SetRect(open,new Vector2(0,1),Vector2.one,new Vector2(8,-12-56*_textScale),new Vector2(-(width-8-80*_textScale),-12));
+        if(hint!=null) {
+            var rect=hint.transform.parent.GetComponent<RectTransform>();
+            SetRect(rect,new Vector2(0,1),Vector2.one,new Vector2(12,-12-64*_textScale),new Vector2(-12,-12));
+        }
+        if(colorsContent!=null) {
+            var grid=colorsContent.GetComponentInChildren<GridLayoutGroup>(true);
+            int columns=Mathf.Max(1,Mathf.FloorToInt((properties.rect.width-24)/54));
+            grid.constraintCount=columns;
+            grid.GetComponent<LayoutElement>().preferredHeight=Mathf.CeilToInt(8f/columns)*54;
+        }
         foreach(var element in canvas.GetComponentsInChildren<SandboxRowSize>(true)) {
             element.Apply(_textScale);
             var labels=element.GetComponentsInChildren<TMP_Text>();
-            if(labels.Length==2) {
-                labels[0].rectTransform.offsetMin=new Vector2(0,-40*_textScale);
+            if(labels.Length>=2) {
+                labels[0].rectTransform.offsetMin=new Vector2(0,-28*_textScale);
                 labels[0].rectTransform.offsetMax=new Vector2(-56*_textScale,0);
-                labels[1].rectTransform.offsetMin=new Vector2(-56*_textScale,-40*_textScale);
+                labels[1].rectTransform.offsetMin=new Vector2(-56*_textScale,-28*_textScale);
             }
         }
         Canvas.ForceUpdateCanvases();
@@ -122,10 +159,45 @@ public class SandboxUIController : MonoBehaviour
     public void CollapseTools() { _toolsCollapsed=true; FindButton("OpenTools").gameObject.SetActive(true); CloseDrawer(); }
     public void ExpandTools() { _toolsCollapsed=false; FindButton("OpenTools").gameObject.SetActive(false); Layout(); }
     private Button FindButton(string name) { foreach(var b in canvas.GetComponentsInChildren<Button>(true)) if(b.name==name)return b; return null; }
-    public void ShowProperties() { CloseDrawer(); properties.gameObject.SetActive(true); }
+    public void ShowProperties(bool resetTab=false) {
+        CloseDrawer(); properties.gameObject.SetActive(true);
+        if(resetTab) ShowDimensions(); else UpdateTabs();
+    }
+    public void ShowDimensions() { _showMove=false; _showColors=false; propertiesManager.HideColorPicker(); UpdateTabs(); ResetPropertyScroll(); Layout(); }
+    public void ShowColors() { _showMove=false; _showColors=true; UpdateTabs(); ResetPropertyScroll(); Layout(); }
+    public void ShowMove() { _showMove=true; _showColors=false;propertiesManager.HideColorPicker();UpdateTabs();ResetPropertyScroll();Layout(); }
+    private void ResetPropertyScroll() {
+        Canvas.ForceUpdateCanvases();
+        properties.GetComponentInChildren<ScrollRect>(true).verticalNormalizedPosition=1;
+    }
+    private void UpdateTabs() {
+        if(dimensionsContent==null || colorsContent==null)return;
+        dimensionsContent.SetActive(!_showColors && !_showMove);colorsContent.SetActive(_showColors);
+        moveHelp.SetActive(_showMove);
+        var selected=SandboxStyle.Hex(_dark ? "29436B" : "E0EAFF");
+        var idle=SandboxStyle.Hex(_dark ? "172338" : "FFFFFF");
+        sizeTab.image.color=_showColors || _showMove ? idle : selected;
+        colorTab.image.color=_showColors ? selected : idle;
+        moveTab.image.color=_showMove ? selected : idle;
+    }
     public void CloseProperties() { FindObjectOfType<SelectionManager>()?.DeselectCurrent(); }
-    public void RequestUndo(string unused) { UndoManager.Instance?.ClickUndo(); }
+    public void RequestUndo(string unused) { GetComponent<MoveGizmo>()?.End();FindObjectOfType<SelectionManager>()?.FinishDrag();UndoManager.Instance?.ClickUndo(); }
+    public void RequestRedo(string unused) { GetComponent<MoveGizmo>()?.End();FindObjectOfType<SelectionManager>()?.FinishDrag();UndoManager.Instance?.ClickRedo(); }
+    public void Undo() { UndoManager.Instance?.ClickUndo(); }
+    public void Redo() { UndoManager.Instance?.ClickRedo(); }
+    private void UpdateHistoryButtons() {
+        if(editorUndo!=null)editorUndo.interactable=UndoManager.Instance!=null && UndoManager.Instance.CanUndo;
+        if(editorRedo!=null)editorRedo.interactable=UndoManager.Instance!=null && UndoManager.Instance.CanRedo;
+    }
     public void ResetView(string unused) { Camera.main?.GetComponent<CameraHandler>()?.ResetView(); }
+    public void SetUiBlocked(string value) {
+        SelectionManager.UiBlocked=value=="true";
+        if(SelectionManager.UiBlocked) {GetComponent<MoveGizmo>()?.Cancel();FindObjectOfType<SelectionManager>()?.CancelDrag();}
+    }
+    public void ShowHint(string message) {
+        if(hint==null)return;
+        hint.text=message;_hintUntil=Time.unscaledTime+2;hint.transform.parent.gameObject.SetActive(true);
+    }
     public void BeginPaletteDrag() { drawerGroup.alpha=.12f;drawerGroup.blocksRaycasts=false; }
     public void EndPaletteDrag() { drawerGroup.alpha=1;drawerGroup.blocksRaycasts=true; }
     private void UpdateRail()
@@ -146,6 +218,7 @@ public class SandboxUIController : MonoBehaviour
         var loader=GetComponent<LoadManager>();
         if(loader==null || string.IsNullOrEmpty(loader.SessionId)) return;
         SendToFlutter.Send(JsonUtility.ToJson(new State{sessionId=loader.SessionId,dirty=WorkspaceState.Dirty,
-            canUndo=UndoManager.Instance!=null&&UndoManager.Instance.CanUndo,revision=WorkspaceState.Revision}));
+            canUndo=UndoManager.Instance!=null&&UndoManager.Instance.CanUndo,
+            canRedo=UndoManager.Instance!=null&&UndoManager.Instance.CanRedo,revision=WorkspaceState.Revision}));
     }
 }

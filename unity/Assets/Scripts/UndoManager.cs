@@ -4,175 +4,92 @@ using UnityEngine;
 public interface ICommand
 {
     void Undo();
+    void Redo();
 }
 
 public class MoveCommand : ICommand
 {
-    private Transform _blockTransform;
-    private Vector3 _previousPosition;
-
-    public MoveCommand(Transform blockTransform, Vector3 previousPosition)
-    {
-        _blockTransform = blockTransform;
-        _previousPosition = previousPosition;
-    }
-
-    public void Undo()
-    {
-        if (_blockTransform != null) _blockTransform.position = _previousPosition;
-    }
+    private readonly Transform _block;
+    private readonly Vector3 _before;
+    private Vector3 _after;
+    public MoveCommand(Transform block, Vector3 before) { _block=block; _before=before; }
+    public void Undo() { if (_block==null) return; _after=_block.position; _block.position=_before; Physics.SyncTransforms(); }
+    public void Redo() { if (_block==null) return; _block.position=_after; Physics.SyncTransforms(); }
 }
-
-// --- NEW COMMANDS BELOW ---
 
 public class DeleteCommand : ICommand
 {
-    private GameObject _blockObj;
-    private HierarchyManager _hierarchyManager;
-
-    public DeleteCommand(GameObject blockObj, HierarchyManager hierarchyManager)
-    {
-        _blockObj = blockObj;
-        _hierarchyManager = hierarchyManager;
-    }
-
-    public void Undo()
-    {
-        if (_blockObj != null)
-        {
-            // 1. Turn the block back on!
-            _blockObj.SetActive(true);
-            
-            // 2. Put it back in the UI list
-            if (_hierarchyManager != null)
-            {
-                _hierarchyManager.AddBlockToList(_blockObj);
-            }
-        }
-    }
+    private readonly GameObject _block;
+    private readonly HierarchyManager _hierarchy;
+    public DeleteCommand(GameObject block, HierarchyManager hierarchy) { _block=block; _hierarchy=hierarchy; }
+    public void Undo() { if (_block==null) return; _block.SetActive(true); _hierarchy?.AddBlockToList(_block); }
+    public void Redo() { if (_block==null) return; _hierarchy?.RemoveBlockFromList(_block); _block.SetActive(false); }
 }
 
 public class ColorCommand : ICommand
 {
-    private BlockData _block;
-    private Color _previousColor;
-
-    public ColorCommand(BlockData block, Color previousColor)
-    {
-        _block = block;
-        _previousColor = previousColor;
-    }
-
-    public void Undo()
-    {
-        if (_block != null)
-        {
-            _block.SetColor(_previousColor);
-            
-            // If the UI is currently open for this block, update the panel!
-            PropertiesUIManager uiManager = Object.FindObjectOfType<PropertiesUIManager>();
-            if (uiManager != null) uiManager.ForceRefreshColorUI(_previousColor);
-        }
-    }
+    private readonly BlockData _block;
+    private readonly Color _before;
+    private Color _after;
+    public ColorCommand(BlockData block, Color before) { _block=block; _before=before; }
+    public void Undo() { if (_block==null) return; _after=_block.blockColor; _block.SetColor(_before); }
+    public void Redo() { if (_block!=null) _block.SetColor(_after); }
 }
 
 public class SizeCommand : ICommand
 {
-    private BlockData _block;
-    private float _prevW, _prevH, _prevL;
-
-    public SizeCommand(BlockData block, float prevW, float prevH, float prevL)
-    {
-        _block = block;
-        _prevW = prevW;
-        _prevH = prevH;
-        _prevL = prevL;
+    private readonly BlockData _block;
+    private readonly Vector3 _before;
+    private Vector3 _after, _beforePosition, _afterPosition;
+    public SizeCommand(BlockData block, float width, float height, float length)
+    { _block=block; _before=new Vector3(width,height,length); _beforePosition=block.transform.position; }
+    public void Undo() {
+        if (_block==null) return;
+        _after=new Vector3(_block.widthOrRadius,_block.height,_block.length); _afterPosition=_block.transform.position;
+        _block.RestoreDimensions(_before.x,_before.y,_before.z); _block.transform.position=_beforePosition;
+        Physics.SyncTransforms();
     }
-
-    public void Undo()
-    {
-        if (_block != null)
-        {
-            _block.widthOrRadius = _prevW;
-            _block.height = _prevH;
-            _block.length = _prevL;
-            _block.ApplyDimensions();
-
-            // If the UI is open for this block, update the sliders!
-            PropertiesUIManager uiManager = Object.FindObjectOfType<PropertiesUIManager>();
-            if (uiManager != null) uiManager.ForceRefreshSizeUI(_prevW, _prevH, _prevL);
-        }
+    public void Redo() {
+        if (_block==null) return;
+        _block.RestoreDimensions(_after.x,_after.y,_after.z); _block.transform.position=_afterPosition;
+        Physics.SyncTransforms();
     }
 }
 
-// --- MANAGER ---
 public class UndoManager : MonoBehaviour
 {
-    public bool CanUndo => _undoStack.Count > 0;
-    public void RequestUndo(string unused) { ClickUndo(); }
-    public void ClearHistory() { _undoStack.Clear(); WorkspaceState.Reset(); }
-    private void OnDestroy() { if (Instance == this) Instance = null; }
-    public static UndoManager Instance; 
-    private Stack<ICommand> _undoStack = new Stack<ICommand>();
-
-    void Awake()
-    {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+    public static UndoManager Instance;
+    private readonly Stack<ICommand> _undoStack=new Stack<ICommand>();
+    private readonly Stack<ICommand> _redoStack=new Stack<ICommand>();
+    public bool CanUndo => _undoStack.Count>0;
+    public bool CanRedo => _redoStack.Count>0;
+    void Awake() { if (Instance==null || Instance==this) Instance=this; else Destroy(this); }
+    void OnDestroy() { if (Instance==this) Instance=null; }
+    public void ClearHistory() { _undoStack.Clear(); _redoStack.Clear(); WorkspaceState.Reset(); }
+    public void RecordCommand(ICommand command) {
+        if (command==null) return;
+        _undoStack.Push(command); _redoStack.Clear(); WorkspaceState.Edit();
     }
-
-    public void RecordCommand(ICommand command)
-    {
-        _undoStack.Push(command);
+    public void RequestUndo(string unused) { ClickUndo(); }
+    public void RequestRedo(string unused) { ClickRedo(); }
+    public void ClickUndo() {
+        if (!CanUndo) return;
+        var command=_undoStack.Pop(); command.Undo(); _redoStack.Push(command); Refresh();
+    }
+    public void ClickRedo() {
+        if (!CanRedo) return;
+        var command=_redoStack.Pop(); command.Redo(); _undoStack.Push(command); Refresh();
+    }
+    private void Refresh() {
+        FindObjectOfType<SelectionManager>()?.RefreshSelection();
         WorkspaceState.Edit();
     }
-
-    public void ClickUndo()
-    {
-        if (_undoStack.Count > 0)
-        {
-            ICommand lastAction = _undoStack.Pop();
-            lastAction.Undo();
-            var selection = FindObjectOfType<SelectionManager>();
-            if (selection != null) selection.DeselectCurrent();
-            WorkspaceState.Edit();
-        }
-        else
-        {
-            Debug.Log("Nothing to undo!");
-        }
-    }
-
     public class AddCommand : ICommand
-{
-    private GameObject _blockObj;
-    private HierarchyManager _hierarchyManager;
-
-    public AddCommand(GameObject blockObj, HierarchyManager hierarchyManager)
     {
-        _blockObj = blockObj;
-        _hierarchyManager = hierarchyManager;
+        private readonly GameObject _block;
+        private readonly HierarchyManager _hierarchy;
+        public AddCommand(GameObject block, HierarchyManager hierarchy) { _block=block; _hierarchy=hierarchy; }
+        public void Undo() { if (_block==null) return; _hierarchy?.RemoveBlockFromList(_block); _block.SetActive(false); }
+        public void Redo() { if (_block==null) return; _block.SetActive(true); _hierarchy?.AddBlockToList(_block); }
     }
-
-    public void Undo()
-    {
-        if (_blockObj != null)
-        {
-            _blockObj.SetActive(false);
-            if (_hierarchyManager != null)
-            {
-                _hierarchyManager.RemoveBlockFromList(_blockObj);
-            }
-
-
-            PropertiesUIManager uiManager = Object.FindObjectOfType<PropertiesUIManager>();
-            if (uiManager != null)
-            {
-
-                uiManager.propertiesPanel.SetActive(false);
-                if (uiManager.colorPickerContainer != null) uiManager.colorPickerContainer.SetActive(false);
-            }
-        }
-    }
-}
 }

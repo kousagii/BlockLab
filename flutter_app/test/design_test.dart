@@ -16,6 +16,7 @@ import 'package:unity_flutter/screens/settings_screen.dart';
 import 'package:unity_flutter/screens/works_screen.dart';
 import 'package:unity_flutter/screens/lessons_screen.dart';
 import 'package:unity_flutter/screens/lesson_detail_screen.dart';
+import 'package:unity_flutter/screens/lesson_guide.dart';
 import 'package:unity_flutter/services/appearance_controller.dart';
 import 'package:unity_flutter/services/isar_service.dart';
 import 'package:unity_flutter/services/profile_service.dart';
@@ -131,6 +132,18 @@ void main() {
             ),
             'settings': const SettingsScreen(),
             'onboarding': NameInputScreen(isarService: store, profile: profile),
+            'lesson-guide': Scaffold(
+              body: Column(
+                children: [
+                  LessonGuide(
+                    lesson: lessons.first,
+                    profile: profile,
+                    onComplete: () async {},
+                  ),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
+            ),
           };
           for (final page in pages.entries) {
             final key = GlobalKey();

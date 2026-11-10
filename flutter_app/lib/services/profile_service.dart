@@ -7,6 +7,14 @@ class ProfileService {
   bool get accepted => preferences.getBool('profile.accepted') ?? false;
   String? get lastLesson => preferences.getString('lesson.last');
   int? buildForLesson(String id) => preferences.getInt('lesson.build.$id');
+  int stepForLesson(String id) => preferences.getInt('lesson.step.$id') ?? 0;
+  Future<void> saveLessonStep(String id, int step) async {
+    if (step < 0) throw ArgumentError.value(step, 'step');
+    if (!await preferences.setInt('lesson.step.$id', step)) {
+      throw StateError('Could not save lesson progress.');
+    }
+  }
+
   Future<void> saveLessonBuild(String id, int buildId) async {
     await preferences.setInt('lesson.build.$id', buildId);
   }

@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import 'package:isar_community/isar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:unity_flutter/models/lesson.dart';
+import 'package:unity_flutter/services/profile_service.dart';
 import 'package:unity_flutter/design/app_theme.dart';
 import 'package:unity_flutter/screens/sandbox_screen.dart';
 import 'package:unity_flutter/services/isar_service.dart';
@@ -46,19 +49,41 @@ void main() {
         }
         return null;
       });
-      messenger.setMockMethodCallHandler(
-        SystemChannels.platform_views,
-        (call) async => call.method == 'create' ? 1 : null,
-      );
+      messenger.setMockMethodCallHandler(SystemChannels.platform_views, (
+        call,
+      ) async {
+        if (call.method == 'create') return 1;
+        if (call.method == 'resize') {
+          final args = call.arguments as Map;
+          return {'width': args['width'], 'height': args['height']};
+        }
+        return null;
+      });
       addTearDown(() {
         messenger.setMockMethodCallHandler(channel, null);
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
       final store = ControlledStore();
+      SharedPreferences.setMockInitialValues({});
+      final profile = ProfileService(await SharedPreferences.getInstance());
+      final lesson = Lesson({
+        'id': 'sandbox-test',
+        'title': 'Test lesson',
+        'difficulty': 'Beginner',
+        'source': 'Synthetic test',
+        'steps': [
+          {'text': 'Place a cube.'},
+          {'text': 'Change its height.'},
+        ],
+      });
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.build(Brightness.light),
-          home: SandboxScreen(isarService: store),
+          home: SandboxScreen(
+            isarService: store,
+            lesson: lesson,
+            profile: profile,
+          ),
         ),
       );
       await tester.pump(const Duration(milliseconds: 600));
@@ -81,6 +106,15 @@ void main() {
         'revision': 3,
       });
       expect(find.text('Unsaved changes'), findsOneWidget);
+      final runtime = tester.state(find.byType(EmbedUnity));
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(profile.stepForLesson('sandbox-test'), 1);
+      expect(tester.state(find.byType(EmbedUnity)), same(runtime));
+      expect(calls.where((c) => c[1] == 'BeginSession').length, 1);
+      await tester.tap(find.byTooltip('Collapse lesson'));
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(EmbedUnity)), same(runtime));
       final save = {
         ...jsonDecode(fixture()) as Map<String, dynamic>,
         'messageType': 'SAVE_BUILD',

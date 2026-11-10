@@ -52,6 +52,8 @@ public class SaveManager : MonoBehaviour
     }
     public void ClickSaveBuild()
     {
+        GetComponent<MoveGizmo>()?.End();
+        FindObjectOfType<SelectionManager>()?.FinishDrag();
         if (!_saving) StartCoroutine(CaptureScreenshotAndSave());
     }
     private IEnumerator CaptureScreenshotAndSave()

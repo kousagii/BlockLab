@@ -22,6 +22,14 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   bool _busy = false;
   int _step = 0;
   final _scroll = ScrollController();
+  @override
+  void initState() {
+    super.initState();
+    _step = widget.profile
+        .stepForLesson(widget.lesson.id)
+        .clamp(0, widget.lesson.steps.length - 1);
+  }
+
   Future<void> _run(Future<void> Function() task) async {
     setState(() {
       _busy = true;
@@ -58,14 +66,36 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
           initialBuildJson: saved?.sceneDataJson,
           existingBuildId: saved?.id,
           buildName: saved?.buildName ?? widget.lesson.title,
+          lesson: widget.lesson,
+          profile: widget.profile,
           onSaved: (buildId) =>
               widget.profile.saveLessonBuild(widget.lesson.id, buildId),
         ),
       ),
     );
+    if (mounted) {
+      setState(() {
+        _step = widget.profile
+            .stepForLesson(widget.lesson.id)
+            .clamp(0, widget.lesson.steps.length - 1);
+      });
+    }
   }
 
-  void _change(int step) {
+  Future<void> _change(int step) async {
+    try {
+      await widget.profile.saveLessonStep(widget.lesson.id, step);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save your lesson step. Please retry.'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       _step = step;
     });
@@ -162,8 +192,8 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               onPressed: _busy || complete
                   ? null
                   : () => _run(() async {
-                      await widget.profile.completeLesson(lesson.id);
                       await widget.isarService.completeLesson(lesson.title);
+                      await widget.profile.completeLesson(lesson.id);
                     }),
               icon: Icon(
                 complete

@@ -22,7 +22,7 @@ public static class BlockLabUIBuilder
         if(_ui!=null && _ui.canvas!=null) {
             foreach(var graphic in _ui.canvas.GetComponentsInChildren<Graphic>(true))
                 if(graphic.GetComponent<CanvasRenderer>()==null)graphic.gameObject.AddComponent<CanvasRenderer>();
-            RailIcons(); GridMaterial();
+            UpgradeProperties(selection); FixSliderThumbs(); RailIcons(); GridMaterial(); PrepareBlocks(loader);
             return;
         }
         // Replace the obsolete canvas only after preserving the scene's non-UI managers.
@@ -107,11 +107,128 @@ public static class BlockLabUIBuilder
         drawer.gameObject.SetActive(false);inspector.gameObject.SetActive(false);
         _ui.objectsContent.transform.parent.gameObject.SetActive(false);
         empty.gameObject.SetActive(false);
-        _ui.Layout();
+        UpgradeProperties(selection); FixSliderThumbs(); PrepareBlocks(loader); _ui.Layout();
         RailIcons(); GridMaterial();
         EditorUtility.SetDirty(loader);EditorUtility.SetDirty(save);EditorUtility.SetDirty(selection);
         EditorUtility.SetDirty(_ui);EditorUtility.SetDirty(properties);EditorUtility.SetDirty(hierarchy);
     }
+    private static void PrepareBlocks(LoadManager loader) {
+        const string path="Assets/Materials/StudyBlock.mat";
+        var material=AssetDatabase.LoadAssetAtPath<Material>(path);
+        if(material==null){material=new Material(Shader.Find("BlockLab/Study Block"));AssetDatabase.CreateAsset(material,path);}
+        foreach(var prefab in loader.blockPrefabs) {
+            var assetPath=AssetDatabase.GetAssetPath(prefab);
+            var root=PrefabUtility.LoadPrefabContents(assetPath);
+            var data=root.GetComponent<BlockData>();data.presentationMaterial=material;
+            var outline=root.GetComponent<Outline>();
+            if(outline!=null)outline.OutlineColor=SandboxStyle.Hex("366CD6");
+            foreach(var collider in root.GetComponentsInChildren<MeshCollider>())collider.convex=true;
+            foreach(var renderer in root.GetComponentsInChildren<MeshRenderer>()) {
+                renderer.sharedMaterial=material;renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;renderer.receiveShadows=false;
+            }
+            PrefabUtility.SaveAsPrefabAsset(root,assetPath);PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+    private static void FixSliderThumbs() {
+        foreach(var slider in _ui.properties.GetComponentsInChildren<Slider>(true)) {
+            if(slider.handleRect==null || slider.handleRect.name!="Thumb")continue;
+            var area=slider.handleRect.parent.GetComponent<RectTransform>();
+            Set(area,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(12,-12),new Vector2(-12,12));
+            slider.handleRect.sizeDelta=new Vector2(24,0);
+        }
+    }
+    private static void UpgradeProperties(SelectionManager selection) {
+        if(_ui.dimensionsContent!=null && _ui.propertiesLayoutVersion>=2)return;
+        var properties=_ui.propertiesManager;
+        var inspector=_ui.properties;
+        foreach(var name in new[]{"PropertyTabs"}) {
+            var child=inspector.Find(name);if(child!=null)UnityEngine.Object.DestroyImmediate(child.gameObject);
+        }
+        foreach(var name in new[]{"WorkspaceHint","MoveGizmo"}) {
+            var child=_ui.safeRoot.Find(name);if(child!=null)UnityEngine.Object.DestroyImmediate(child.gameObject);
+        }
+        var oldScroll=inspector.Find("PropertiesScroll");
+        if(oldScroll!=null)UnityEngine.Object.DestroyImmediate(oldScroll.gameObject);
+        var oldDelete=inspector.Find("DeleteBlock");if(oldDelete!=null)UnityEngine.Object.DestroyImmediate(oldDelete.gameObject);
+        var tabs=Rect("PropertyTabs",inspector);
+        var tabsLayout=tabs.gameObject.AddComponent<HorizontalLayoutGroup>();tabsLayout.spacing=4;
+        tabsLayout.childControlWidth=true;tabsLayout.childControlHeight=true;tabsLayout.childForceExpandWidth=true;
+        var size=Button("SizeTab",tabs,"Size",15);Bind(size,_ui.ShowDimensions);_ui.sizeTab=size;
+        var color=Button("ColorTab",tabs,"Color",15);Bind(color,_ui.ShowColors);_ui.colorTab=color;
+        var move=Button("MoveTab",tabs,"Move",15);Bind(move,_ui.ShowMove);_ui.moveTab=move;
+        var content=Scroll("Properties",inspector,116,8);
+        var dimensions=Vertical("Dimensions",content);_ui.dimensionsContent=dimensions.gameObject;
+        CompactDimension(dimensions,"Width",properties.OnWidthRadiusChanged,out properties.rowWidthRadius,out properties.widthRadiusLabel,out properties.valWidthRadius,out properties.sliderWidthRadius);
+        TMP_Text unused;
+        CompactDimension(dimensions,"Height",properties.OnHeightChanged,out properties.rowHeight,out unused,out properties.valHeight,out properties.sliderHeight);
+        CompactDimension(dimensions,"Length",properties.OnLengthChanged,out properties.rowLength,out unused,out properties.valLength,out properties.sliderLength);
+        var colors=Vertical("Colors",content);_ui.colorsContent=colors.gameObject;
+        var swatches=Rect("ColorSwatches",colors);Size(swatches.gameObject,104);
+        var grid=swatches.gameObject.AddComponent<GridLayoutGroup>();grid.cellSize=new Vector2(48,48);grid.spacing=new Vector2(6,6);
+        grid.constraint=GridLayoutGroup.Constraint.FixedColumnCount;grid.constraintCount=5;
+        foreach(var hex in new[]{"2858C6","198574","E39817","D65353","8D60BF","F6F8FC","52617A","18243A"}) {
+            var button=Button("Paint"+hex,swatches,"",14);
+            UnityEngine.Object.DestroyImmediate(button.GetComponent<SandboxStyle>());button.image.color=Color.clear;
+            var chip=Panel("Swatch",button.transform);Fill(chip,8);UnityEngine.Object.DestroyImmediate(chip.GetComponent<SandboxStyle>());
+            var value=SandboxStyle.Hex(hex);chip.GetComponent<Image>().color=value;chip.GetComponent<Image>().raycastTarget=false;
+            var border=chip.gameObject.AddComponent<UnityEngine.UI.Outline>();border.effectColor=SandboxStyle.Hex("9FAEC4");border.effectDistance=Vector2.one;
+            var action=button.gameObject.AddComponent<BlockColorAction>();action.manager=properties;action.color=value;Bind(button,action.Apply);
+        }
+        var more=Button("MoreColors",colors,"More colors",15);Size(more.gameObject,48);Bind(more,properties.ToggleColorPicker);
+        var preview=Panel("SelectedColor",more.transform);Set(preview,new Vector2(1,.5f),new Vector2(1,.5f),new Vector2(-40,-14),new Vector2(-12,14));
+        UnityEngine.Object.DestroyImmediate(preview.GetComponent<SandboxStyle>());properties.colorPreviewButton=preview.GetComponent<Image>();
+        var label=more.GetComponentInChildren<TMP_Text>();label.alignment=TextAlignmentOptions.MidlineLeft;label.rectTransform.offsetMin=new Vector2(12,6);label.rectTransform.offsetMax=new Vector2(-48,-6);
+        var picker=(GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/FlexibleColorPicker/FlexibleColorPicker.prefab"),colors);
+        picker.name="ColorPicker";Size(picker,260);properties.colorPickerContainer=picker;properties.fcp=picker.GetComponent<FlexibleColorPicker>();
+        foreach(var text in picker.GetComponentsInChildren<UnityEngine.UI.Text>(true))text.font=AssetDatabase.LoadAssetAtPath<Font>("Assets/Fonts/Nunito-Semibold.ttf");
+        picker.SetActive(false);
+        var moveHelp=Text("MoveHelp",content,"Drag X, Y, or Z to move. Use Y to lift a block.",16);Size(moveHelp.gameObject,96);_ui.moveHelp=moveHelp.gameObject;
+        var delete=Button("DeleteBlock",inspector,"Delete",13);Bind(delete,properties.DeleteBlock);
+        Style(delete.GetComponentInChildren<TMP_Text>().gameObject,SandboxColorRole.Danger,13);
+        var hint=Panel("WorkspaceHint",_ui.safeRoot);Set(hint,new Vector2(0,1),Vector2.one,new Vector2(96,-130),new Vector2(-8,-76));
+        hint.GetComponent<Image>().raycastTarget=false;
+        var hintText=Text("HintText",hint,"",14);Fill(hintText.rectTransform,8);_ui.hint=hintText;hint.gameObject.SetActive(false);
+        var gizmo=_ui.GetComponent<MoveGizmo>() ?? _ui.gameObject.AddComponent<MoveGizmo>();
+        gizmo.selection=selection;gizmo.ui=_ui;gizmo.status=moveHelp;
+        var gizmoRoot=Rect("MoveGizmo",_ui.safeRoot);Fill(gizmoRoot);gizmoRoot.SetAsFirstSibling();
+        var lines=gizmoRoot.gameObject.AddComponent<GizmoLines>();lines.raycastTarget=false;
+        gizmo.root=gizmoRoot;gizmo.handles=new Button[3];
+        for(int axis=0;axis<3;axis++) {
+            var button=Button("Axis"+axis,gizmoRoot,"XYZ"[axis].ToString(),18);
+            UnityEngine.Object.DestroyImmediate(button.GetComponent<SandboxStyle>());
+            button.image.color=SandboxStyle.Hex(new[]{"AF3030","176C45","2858C6"}[axis]);
+            var text=button.GetComponentInChildren<TMP_Text>();UnityEngine.Object.DestroyImmediate(text.GetComponent<SandboxStyle>());text.color=Color.white;
+            var rect=button.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=new Vector2(.5f,.5f);rect.sizeDelta=new Vector2(48,48);
+            var handle=button.gameObject.AddComponent<GizmoHandle>();handle.gizmo=gizmo;handle.axis=axis;gizmo.handles[axis]=button;
+        }
+        gizmoRoot.gameObject.SetActive(false);
+        _ui.propertiesLayoutVersion=2;
+        _ui.ShowDimensions();EditorUtility.SetDirty(_ui);EditorUtility.SetDirty(properties);EditorUtility.SetDirty(gizmo);
+    }
+    private static RectTransform Vertical(string name,Transform parent) {
+        var rect=Rect(name,parent);var layout=rect.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing=4;layout.childControlWidth=true;layout.childControlHeight=true;layout.childForceExpandHeight=false;return rect;
+    }
+    private static void CompactDimension(Transform parent,string label,UnityAction<float> action,out GameObject row,out TMP_Text title,out TMP_Text value,out Slider slider) {
+        var rect=Rect(label+"Row",parent);row=rect.gameObject;Size(row,76);row.AddComponent<SandboxRowSize>().baseHeight=76;
+        title=Text(label+"Label",rect,label,15);Set(title.rectTransform,new Vector2(0,1),One,new Vector2(0,-28),new Vector2(-56,0));
+        value=Text(label+"Value",rect,"1",15);value.alignment=TextAlignmentOptions.MidlineRight;Set(value.rectTransform,new Vector2(1,1),One,new Vector2(-56,-28),Zero);
+        var touch=Rect(label+"Slider",rect);Set(touch,Zero,new Vector2(1,0),new Vector2(48,0),new Vector2(-48,48));
+        var target=touch.gameObject.AddComponent<Image>();target.color=Color.clear;
+        slider=touch.gameObject.AddComponent<Slider>();slider.targetGraphic=target;slider.minValue=1;slider.maxValue=100;slider.wholeNumbers=true;
+        var track=Panel("Track",touch,SandboxColorRole.Border);Set(track,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(8,-3),new Vector2(-8,3));
+        var fill=Panel("Fill",track,SandboxColorRole.Accent);Fill(fill);slider.fillRect=fill;
+        var handleArea=Rect("HandleArea",touch);Set(handleArea,new Vector2(0,.5f),new Vector2(1,.5f),new Vector2(12,-12),new Vector2(-12,12));
+        var thumb=Panel("Thumb",handleArea,SandboxColorRole.Accent);thumb.sizeDelta=new Vector2(24,0);slider.handleRect=thumb;
+        UnityEventTools.AddPersistentListener(slider.onValueChanged,action);
+        for(int i=0;i<2;i++) {
+            var button=Button(i==0?"Decrease":"Increase",rect,i==0?"-":"+",18);
+            button.GetComponentInChildren<TMP_Text>().GetComponent<SandboxStyle>().textSize=0;
+            Set(button.GetComponent<RectTransform>(),new Vector2(i,0),new Vector2(i,0),new Vector2(i==0?0:-48,0),new Vector2(i==0?48:0,48));
+            var step=button.gameObject.AddComponent<DimensionStep>();step.slider=slider;step.step=i==0?-1:1;Bind(button,step.Apply);
+        }
+    }
+
     private static void GridMaterial() {
         var plane=GameObject.Find("Plane");if(plane==null)return;
         const string path="Assets/Materials/WorkspaceGrid.mat";

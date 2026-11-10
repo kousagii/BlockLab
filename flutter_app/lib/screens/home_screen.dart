@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           PageHeading(
             'Hi, ${widget.profile.name}!',
-            subtitle: 'What will you create today?',
+            subtitle: 'Open a build or start a lesson.',
             actions: [
               IconButton(
                 tooltip: 'Settings',
@@ -128,13 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Small blocks.\nEndless possibilities.',
+                      'Build with 3D shapes',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(color: colors.onPrimaryContainer),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Stack, shape, and make it your own.',
+                      'Add blocks, change their size, and choose their colors.',
                       style: TextStyle(color: colors.onPrimaryContainer),
                     ),
                     const SizedBox(height: 24),
@@ -213,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   child: Text(
-                    'Your first creation will appear here.',
+                    'No saved builds yet.',
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                 );
