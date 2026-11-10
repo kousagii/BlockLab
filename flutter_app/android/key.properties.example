@@ -1,0 +1,5 @@
+# Copy to key.properties locally. Keep the original app signing identity for updates.
+storeFile=C:/private/your-existing-release-key.jks
+storePassword=REPLACE_LOCALLY
+keyAlias=REPLACE_LOCALLY
+keyPassword=REPLACE_LOCALLY

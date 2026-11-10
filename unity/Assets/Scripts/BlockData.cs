@@ -4,6 +4,23 @@ public enum BlockShapeType { Cube, TriangularPrism, Cylinder, Trapezoid, HalfCyl
 
 public class BlockData : MonoBehaviour
 {
+    public string blockId;
+    [System.NonSerialized] public bool IsPreview;
+    public void EnsureIdentity()
+    {
+        if (string.IsNullOrEmpty(blockId)) blockId = System.Guid.NewGuid().ToString("N");
+    }
+
+    public void RestoreDimensions(float width, float newHeight, float newLength)
+    {
+        widthOrRadius = width; height = newHeight; length = newLength;
+        transform.localScale = shapeType == BlockShapeType.Cylinder
+            ? new Vector3(width, newHeight, width)
+            : shapeType == BlockShapeType.HalfCylinder
+                ? new Vector3(width, newLength, newHeight) : new Vector3(width, newHeight, newLength);
+        _lastWidth = width; _lastHeight = newHeight;
+        _lastLength = shapeType == BlockShapeType.Cylinder ? width : newLength;
+    }
     public BlockShapeType shapeType;
     public Transform meshChild; 
 

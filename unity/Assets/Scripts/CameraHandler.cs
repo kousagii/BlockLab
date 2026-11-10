@@ -4,6 +4,9 @@ using UnityEngine.EventSystems;
 public class CameraHandler : MonoBehaviour
 {
     private Camera _cam;
+    private Vector3 _initialPosition, _initialTarget;
+    private Quaternion _initialRotation;
+    private float _initialFov;
     
     [Header("Orbit Settings")]
     public Transform orbitTarget; 
@@ -28,6 +31,12 @@ public class CameraHandler : MonoBehaviour
             fallbackCenter.transform.position = Vector3.zero;
             orbitTarget = fallbackCenter.transform;
         }
+        _initialPosition=transform.position; _initialRotation=transform.rotation;
+        _initialTarget=orbitTarget.position; _initialFov=_cam.fieldOfView;
+    }
+    public void ResetView() {
+        transform.SetPositionAndRotation(_initialPosition,_initialRotation);
+        orbitTarget.position=_initialTarget; _cam.fieldOfView=_initialFov;
     }
 
     void Update()
@@ -39,11 +48,26 @@ public class CameraHandler : MonoBehaviour
         }
 
         // Prevent camera movement when touching UI 
-        if (Input.touchCount > 0 && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId))
+        if (Input.touchCount > 0 && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId))
         {
             return;
         }
 
+        if (Input.touchCount == 0)
+        {
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+            _cam.fieldOfView = Mathf.Clamp(_cam.fieldOfView - Input.mouseScrollDelta.y * 3f, minFOV, maxFOV);
+            if (Input.GetMouseButton(1))
+            {
+                transform.RotateAround(orbitTarget.position, Vector3.up, Input.GetAxis("Mouse X") * 3f);
+                transform.RotateAround(orbitTarget.position, transform.right, -Input.GetAxis("Mouse Y") * 3f);
+            }
+            if (Input.GetMouseButton(2))
+            {
+                var movement = (-transform.right * Input.GetAxis("Mouse X") - transform.up * Input.GetAxis("Mouse Y")) * .2f;
+                transform.position += movement; orbitTarget.position += movement;
+            }
+        }
         if (Input.touchCount == 2)
         {
             HandleTwoFingerGestures();

@@ -6,6 +6,7 @@ using System.Collections;
 public class PropertiesUIManager : MonoBehaviour
 {
     public GameObject propertiesPanel;
+    public TMP_Text blockNameLabel;
     private BlockData _currentBlock;
 
     [Header("Dimension Rows")]
@@ -34,27 +35,35 @@ public class PropertiesUIManager : MonoBehaviour
     [Header("Managers")]
     public HierarchyManager hierarchyManager;
 
-    private bool _hasRecordedSizeUndoThisSession = false;
-    private bool _hasRecordedColorUndoThisSession = false;
-    private Color _colorBeforeEdit;
-    private float _wBefore, _hBefore, _lBefore;
+    private bool _recordedGesture;
+    void LateUpdate()
+    {
+        if (Input.GetMouseButtonUp(0)) _recordedGesture = false;
+    }
+    private void RecordEdit()
+    {
+        if (!_recordedGesture && UndoManager.Instance != null)
+        {
+            UndoManager.Instance.RecordCommand(new WorkspaceSnapshotCommand());
+            _recordedGesture = Input.GetMouseButton(0);
+        }
+    }
 
     void Start()
     {
-        if (propertiesPanel != null) propertiesPanel.SetActive(false);
+        if (propertiesPanel != null && _currentBlock == null) propertiesPanel.SetActive(false);
         if (colorPickerContainer != null) colorPickerContainer.SetActive(false);
         if (fcp != null) fcp.onColorChange.RemoveListener(OnFCPColorChanged);
     }
 
     public void OpenPanel(BlockData block)
     {
+        _recordedGesture = false;
         _currentBlock = block;
+        if (blockNameLabel != null) blockNameLabel.text = block.name;
         propertiesPanel.SetActive(true);
+        FindObjectOfType<SandboxUIController>()?.ShowProperties();
 
-        _hasRecordedSizeUndoThisSession = false;
-        _wBefore = block.widthOrRadius;
-        _hBefore = block.height;
-        _lBefore = block.length;
 
         if (colorPickerContainer != null) 
         {
@@ -74,7 +83,7 @@ public class PropertiesUIManager : MonoBehaviour
                 widthRadiusLabel.text = "Width:";
                 break;
             case BlockShapeType.Cylinder:
-                widthRadiusLabel.text = "Radius:";
+                widthRadiusLabel.text = "Width:";
                 rowLength.SetActive(false);   
                 break;
             case BlockShapeType.TriangularPrism:
@@ -82,7 +91,7 @@ public class PropertiesUIManager : MonoBehaviour
                 widthRadiusLabel.text = "Base Width:"; 
                 break;
             case BlockShapeType.HalfCylinder:
-                widthRadiusLabel.text = "Radius:";
+                widthRadiusLabel.text = "Width:";
                 break;
         }
 
@@ -95,14 +104,7 @@ public class PropertiesUIManager : MonoBehaviour
         if(valLength != null) valLength.text = block.length.ToString("F0");
     }
 
-    private void TryRecordSizeUndo()
-    {
-        if (!_hasRecordedSizeUndoThisSession && _currentBlock != null)
-        {
-            UndoManager.Instance.RecordCommand(new SizeCommand(_currentBlock, _wBefore, _hBefore, _lBefore));
-            _hasRecordedSizeUndoThisSession = true; 
-        }
-    }
+    private void TryRecordSizeUndo() { RecordEdit(); }
 
     public void OnWidthRadiusChanged(float val) 
     { 
@@ -110,6 +112,7 @@ public class PropertiesUIManager : MonoBehaviour
             TryRecordSizeUndo(); 
             _currentBlock.widthOrRadius = val; 
             _currentBlock.ApplyDimensions(); 
+            WorkspaceState.Edit();
             if(valWidthRadius != null) valWidthRadius.text = val.ToString("F0"); 
         } 
     }
@@ -120,6 +123,7 @@ public class PropertiesUIManager : MonoBehaviour
             TryRecordSizeUndo(); 
             _currentBlock.height = val; // <--- NO MORE SWAPPING!
             _currentBlock.ApplyDimensions(); 
+            WorkspaceState.Edit();
             if(valHeight != null) valHeight.text = val.ToString("F0"); 
         } 
     }
@@ -130,6 +134,7 @@ public class PropertiesUIManager : MonoBehaviour
             TryRecordSizeUndo(); 
             _currentBlock.length = val; // <--- NO MORE SWAPPING!
             _currentBlock.ApplyDimensions(); 
+            WorkspaceState.Edit();
             if(valLength != null) valLength.text = val.ToString("F0"); 
         } 
     }
@@ -139,12 +144,11 @@ public class PropertiesUIManager : MonoBehaviour
         if (colorPickerContainer != null)
         {
             StopAllCoroutines();
+            if (_currentBlock == null) return;
             bool isTurningOn = !colorPickerContainer.activeSelf;
             
             if (isTurningOn)
             {
-                _hasRecordedColorUndoThisSession = false;
-                _colorBeforeEdit = _currentBlock.blockColor;
 
                 if (fcp != null) fcp.onColorChange.RemoveListener(OnFCPColorChanged);
                 colorPickerContainer.SetActive(true);
@@ -173,12 +177,9 @@ public class PropertiesUIManager : MonoBehaviour
     {
         if (_currentBlock != null)
         {
-            if (!_hasRecordedColorUndoThisSession)
-            {
-                UndoManager.Instance.RecordCommand(new ColorCommand(_currentBlock, _colorBeforeEdit));
-                _hasRecordedColorUndoThisSession = true;
-            }
+            RecordEdit();
             _currentBlock.SetColor(newColor); 
+            WorkspaceState.Edit();
             if (colorPreviewButton != null) colorPreviewButton.color = newColor; 
         }
     }
@@ -223,6 +224,7 @@ public class PropertiesUIManager : MonoBehaviour
 
     public void ClosePanel()
     {
+        StopAllCoroutines();
         if (_currentBlock != null)
         {
             Outline outline = _currentBlock.GetComponent<Outline>();

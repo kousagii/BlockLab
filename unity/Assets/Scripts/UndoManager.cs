@@ -108,6 +108,10 @@ public class SizeCommand : ICommand
 // --- MANAGER ---
 public class UndoManager : MonoBehaviour
 {
+    public bool CanUndo => _undoStack.Count > 0;
+    public void RequestUndo(string unused) { ClickUndo(); }
+    public void ClearHistory() { _undoStack.Clear(); WorkspaceState.Reset(); }
+    private void OnDestroy() { if (Instance == this) Instance = null; }
     public static UndoManager Instance; 
     private Stack<ICommand> _undoStack = new Stack<ICommand>();
 
@@ -120,6 +124,7 @@ public class UndoManager : MonoBehaviour
     public void RecordCommand(ICommand command)
     {
         _undoStack.Push(command);
+        WorkspaceState.Edit();
     }
 
     public void ClickUndo()
@@ -128,6 +133,9 @@ public class UndoManager : MonoBehaviour
         {
             ICommand lastAction = _undoStack.Pop();
             lastAction.Undo();
+            var selection = FindObjectOfType<SelectionManager>();
+            if (selection != null) selection.DeselectCurrent();
+            WorkspaceState.Edit();
         }
         else
         {

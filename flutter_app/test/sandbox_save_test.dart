@@ -1,0 +1,124 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_embed_unity/flutter_embed_unity.dart';
+import 'package:isar_community/isar.dart';
+import 'package:unity_flutter/design/app_theme.dart';
+import 'package:unity_flutter/screens/sandbox_screen.dart';
+import 'package:unity_flutter/services/isar_service.dart';
+import 'scene_document_test.dart' show fixture;
+
+class ControlledStore extends IsarService {
+  ControlledStore() : super(database: Completer<Isar>().future);
+  Completer<int> create = Completer<int>();
+  int creates = 0, updates = 0;
+  int? updatedId;
+  @override
+  Future<int> saveNewBuild(String name, String json, String? image) {
+    creates++;
+    return create.future;
+  }
+
+  @override
+  Future<void> updateBuild(int id, String json, String? image) async {
+    updates++;
+    updatedId = id;
+  }
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets(
+    'save errors retry, concurrent responses do not duplicate, later saves update',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      const channel = MethodChannel('com.learntoflutter/flutter_embed_unity');
+      final calls = <List<dynamic>>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'sendToUnity') {
+          calls.add(call.arguments as List<dynamic>);
+        }
+        return null;
+      });
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (call) async => call.method == 'create' ? 1 : null,
+      );
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(channel, null);
+        messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
+      });
+      final store = ControlledStore();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.build(Brightness.light),
+          home: SandboxScreen(isarService: store),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      final session =
+          calls.firstWhere((c) => c[1] == 'RequestReady')[2] as String;
+      Future<void> emit(Map<String, dynamic> data) async {
+        final callback = tester
+            .widget<EmbedUnity>(find.byType(EmbedUnity))
+            .onMessageFromUnity!;
+        callback(jsonEncode({...data, 'sessionId': session}));
+        await tester.pump();
+      }
+
+      await emit({'messageType': 'UNITY_READY'});
+      await emit({'messageType': 'SESSION_STARTED'});
+      await emit({
+        'messageType': 'WORKSPACE_STATE',
+        'dirty': true,
+        'canUndo': true,
+        'revision': 3,
+      });
+      expect(find.text('Unsaved changes'), findsOneWidget);
+      final save = {
+        ...jsonDecode(fixture()) as Map<String, dynamic>,
+        'messageType': 'SAVE_BUILD',
+        'revision': 3,
+      };
+      await tester.tap(find.byTooltip('Save build'));
+      await tester.pump();
+      await emit(save);
+      await emit(save);
+      expect(store.creates, 1);
+      expect(calls.where((c) => c[1] == 'AcknowledgeSave'), isEmpty);
+      store.create.completeError(StateError('Disk full'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Could not save your build.'), findsOneWidget);
+      expect(find.text('Unsaved changes'), findsOneWidget);
+      expect(calls.where((c) => c[1] == 'AcknowledgeSave'), isEmpty);
+      store.create = Completer<int>();
+      await tester.tap(find.byTooltip('Save build'));
+      await tester.pump();
+      await emit(save);
+      store.create.complete(12);
+      await tester.pumpAndSettle();
+      expect(calls.where((c) => c[1] == 'AcknowledgeSave').length, 1);
+      expect(
+        jsonDecode(
+          calls.lastWhere((c) => c[1] == 'AcknowledgeSave')[2] as String,
+        )['revision'],
+        3,
+      );
+      await tester.tap(find.byTooltip('Save build'));
+      await tester.pump();
+      await emit(save);
+      await tester.pumpAndSettle();
+      expect(store.creates, 2);
+      expect(store.updates, 1);
+      expect(store.updatedId, 12);
+      await tester.pumpWidget(const SizedBox());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+}

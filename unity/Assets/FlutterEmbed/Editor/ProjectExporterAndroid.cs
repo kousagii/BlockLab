@@ -57,6 +57,13 @@ internal class ProjectExporterAndroid : ProjectExporter
             Match unityStreamingAssetsMatch = (new Regex(@"(?<=unityStreamingAssets=).*", RegexOptions.Multiline)).Match(gradlePropertiesContent);
             if (unityStreamingAssetsMatch.Success)
             {
+                string hostPropertiesPath = Path.Combine(exportPath, "..", "gradle.properties");
+                string propertyLine = "unityStreamingAssets=" + unityStreamingAssetsMatch.Value.Trim();
+                string hostProperties = File.Exists(hostPropertiesPath) ? File.ReadAllText(hostPropertiesPath) : "";
+                hostProperties = Regex.IsMatch(hostProperties, @"(?m)^unityStreamingAssets=.*$")
+                    ? Regex.Replace(hostProperties, @"(?m)^unityStreamingAssets=.*$", propertyLine)
+                    : hostProperties + "\n" + propertyLine + "\n";
+                File.WriteAllText(hostPropertiesPath, hostProperties);
                 Debug.Log($"The following should be added to your project's android/gradle.properties:\n" +
                     $"unityStreamingAssets={unityStreamingAssetsMatch.Value}");
             }

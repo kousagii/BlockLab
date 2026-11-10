@@ -49,7 +49,7 @@ public class SelectionManager : MonoBehaviour
 
             if (Physics.Raycast(ray, out hit))
             {
-                BlockData clickedBlock = hit.collider.GetComponent<BlockData>();
+                BlockData clickedBlock = hit.collider.GetComponentInParent<BlockData>();
                 
                 if (clickedBlock != null)
                 {
@@ -66,7 +66,7 @@ public class SelectionManager : MonoBehaviour
 
                     if (uiManager != null) uiManager.OpenPanel(clickedBlock);
 
-                    _grabbedObject = hit.transform;
+                    _grabbedObject = clickedBlock.transform;
                     _grabbedBlockData = clickedBlock; 
                     isDraggingBlock = true; 
 
@@ -114,32 +114,26 @@ public class SelectionManager : MonoBehaviour
             {
                 float surfaceHeight = hitItem.collider.bounds.max.y;
 
-                if (surfaceHeight <= mouseHeightLimit && surfaceHeight > bestY)
+                if (hitItem.normal.y > 0.99f && surfaceHeight <= mouseHeightLimit && surfaceHeight > bestY)
                 {
                     bestY = surfaceHeight; 
                 }
             }
 
-            targetY = Mathf.Round(bestY);
+            targetY = bestY;
 
             foreach (Collider col in allColliders) col.enabled = true;
 
             _grabbedObject.position = new Vector3(snappedX, targetY, snappedZ);
         }
 
-        if (_grabbedObject != null && _grabbedObject.position != _startDragPosition)
-        {
-            // Note: Make sure you aren't spamming commands here in your real Undo system!
-        }
-        
         // 3. DROP BLOCK
         if (Input.GetMouseButtonUp(0))
         {
             if (_grabbedObject != null && _grabbedObject.position != _startDragPosition)
             {
-                 // Move command recording should ideally happen on MouseUp
-                 // ICommand moveCommand = new MoveCommand(_grabbedObject, _startDragPosition);
-                 // UndoManager.Instance.RecordCommand(moveCommand);
+                 if (UndoManager.Instance != null)
+                     UndoManager.Instance.RecordCommand(new MoveCommand(_grabbedObject, _startDragPosition));
             }
 
             _grabbedObject = null; 
@@ -167,6 +161,7 @@ public class SelectionManager : MonoBehaviour
 
     public void DeselectCurrent()
     {
+        _grabbedObject = null; _grabbedBlockData = null; isDraggingBlock = false;
         if (_selectedBlock != null)
         {
             Outline oldOutline = _selectedBlock.GetComponent<Outline>();

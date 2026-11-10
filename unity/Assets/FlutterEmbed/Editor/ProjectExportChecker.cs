@@ -53,9 +53,9 @@ internal class ProjectExportChecker
             }
 
             AndroidArchitecture architectures = PlayerSettings.Android.targetArchitectures;
-            if (!architectures.HasFlag(AndroidArchitecture.ARMv7) || !architectures.HasFlag(AndroidArchitecture.ARM64))
+            if (!architectures.HasFlag(AndroidArchitecture.ARM64))
             {
-                ProjectExportHelpers.ShowErrorMessage("You must include ARMv7 and ARM64 as target architectures " +
+                ProjectExportHelpers.ShowErrorMessage("BlockLab requires ARM64 as a target architecture " +
                     "(see File -> Build settings -> Player Settings -> Other Settings -> Target architectures)");
                 return ProjectExportCheckerResult.Failure();
             }

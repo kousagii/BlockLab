@@ -1,0 +1,134 @@
+[
+  {
+    "id": "basics",
+    "title": "The Basics",
+    "difficulty": "Easy",
+    "source": "Restored from the supplied UI and block controls.",
+    "steps": [
+      {
+        "text": "Drag a block from the library onto the grid. Select it in the workspace or hierarchy, then change its dimensions and color."
+      },
+      {
+        "text": "Drag a block to move it. Use one finger on empty space to orbit, two fingers to pan, and pinch to zoom. Save your work before leaving."
+      }
+    ]
+  },
+  {
+    "id": "dimensions",
+    "title": "Dimensions and shapes",
+    "difficulty": "Easy",
+    "source": "New restoration guidance: the supplied Lesson 2 had no working content.",
+    "steps": [
+      {
+        "text": "Create each shape: Cube, Triangular Prism, Cylinder, Trapezoid and Half Cylinder. Compare their width, height and length controls."
+      },
+      {
+        "text": "Dimensions use the original prefab scale units. Width is the horizontal span, including for cylinders. Place blocks on flat support surfaces, then try undoing a resize."
+      }
+    ]
+  },
+  {
+    "id": "house",
+    "title": "Build a Simple House",
+    "difficulty": "Medium",
+    "source": "Restored from the supplied house lesson; reference images supplied.",
+    "image": "assets/images/lesson3/build2.jpg",
+    "steps": [
+      {
+        "text": "1. Create a base using a rectangular block.",
+        "image": "assets/images/lesson3/build1.jpg"
+      },
+      {
+        "text": "2. Create a Triangular Prism for the roof. Match its base width and length to the walls below. Place the flat bottom on top of the base. Sloped faces are not support surfaces."
+      }
+    ]
+  },
+  {
+    "id": "garden",
+    "title": "Build a Garden Scene",
+    "difficulty": "Medium",
+    "source": "New restoration guidance based on supplied Lesson4 reference images; original full text was absent.",
+    "image": "assets/images/lesson4/garden_scene.jpg",
+    "steps": [
+      {
+        "text": "Create a green ground block. Build a house, chairs and fences using the reference images.",
+        "image": "assets/images/lesson4/house.jpg"
+      },
+      {
+        "text": "Add a fountain and flower bushes. Compare spacing, height and colors with the target.",
+        "image": "assets/images/lesson4/fountain.jpg"
+      }
+    ]
+  },
+  {
+    "id": "city",
+    "title": "Build a City Scene",
+    "difficulty": "Hard",
+    "source": "New restoration guidance based on supplied lesson5 reference images; original full text was absent.",
+    "image": "assets/images/lesson5/city_scene.jpg",
+    "steps": [
+      {
+        "text": "Create the ground and roads, then add buildings using stacked blocks.",
+        "image": "assets/images/lesson5/building.jpg"
+      },
+      {
+        "text": "Add a park, benches, bus stop and a car. Keep the scale consistent.",
+        "image": "assets/images/lesson5/car.jpg"
+      }
+    ]
+  },
+  {
+    "id": "playground",
+    "title": "Build a Playground Scene",
+    "difficulty": "Hard",
+    "source": "Restored from supplied lesson6.dart and images.",
+    "image": "assets/images/lesson6/playground.jpg",
+    "steps": [
+      {
+        "text": "1. Create the ground using a Cube. Apply green color for grass.",
+        "image": "assets/images/lesson6/ground.jpg"
+      },
+      {
+        "text": "2. Create a swing using Trapezoids, Cylinders, Half-Cylinders, and Cubes.",
+        "image": "assets/images/lesson6/swing.jpg"
+      },
+      {
+        "text": "3. Add a seesaw using a Cube and Trapezoid.",
+        "image": "assets/images/lesson6/seesaw.jpg"
+      },
+      {
+        "text": "4. Add benches using Cubes.",
+        "image": "assets/images/lesson6/bench.jpg"
+      },
+      {
+        "text": "5. Create a plant using a Cylinder and Cubes. Use bright colors, keep spacing even and avoid overcrowding.",
+        "image": "assets/images/lesson6/plant.jpg"
+      }
+    ]
+  },
+  {
+    "id": "coffee",
+    "title": "Build a Coffee Shop",
+    "difficulty": "Hard",
+    "source": "Restored from supplied lesson7.dart; roof label aligned with the existing Triangular Prism prefab.",
+    "image": "assets/images/lesson7/coffee_shop.jpg",
+    "steps": [
+      {
+        "text": "1. Create the ground using a Cube. Use gray and green colors.",
+        "image": "assets/images/lesson7/ground.jpg"
+      },
+      {
+        "text": "2. Build the shop using Cubes.",
+        "image": "assets/images/lesson7/building.jpg"
+      },
+      {
+        "text": "3. Add a roof using a Triangular Prism.",
+        "image": "assets/images/lesson7/roof.jpg"
+      },
+      {
+        "text": "4. Create tables and chairs using Cylinders and Cubes. Keep furniture proportional, use warm colors and align neatly.",
+        "image": "assets/images/lesson7/tables_chairs.jpg"
+      }
+    ]
+  }
+]

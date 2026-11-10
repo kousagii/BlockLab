@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 public class HierarchyManager : MonoBehaviour
 {
+    public int Count => _blockUIItems.Count;
     public GameObject itemPrefab;
     public Transform contentPanel; 
 
@@ -15,11 +16,11 @@ public class HierarchyManager : MonoBehaviour
 
     public void AddBlockToList(GameObject block)
     {
-        if (itemPrefab == null || contentPanel == null) return;
+        if (block == null || itemPrefab == null || contentPanel == null || _blockUIItems.ContainsKey(block)) return;
 
         BlockData blockData = block.GetComponent<BlockData>();
 
-        if (blockData != null)
+        if (blockData != null && (string.IsNullOrEmpty(block.name) || block.name.Contains("(Clone)")))
         {
             if (!_shapeCounts.ContainsKey(blockData.shapeType))
             {
@@ -40,7 +41,7 @@ public class HierarchyManager : MonoBehaviour
             }
             else if (blockData.shapeType == BlockShapeType.TriangularPrism)
             {
-                shapeName = "Pyramid";
+                shapeName = "Triangular Prism";
             }
 
             block.name = $"{shapeName} {_shapeCounts[blockData.shapeType]}";
@@ -65,6 +66,7 @@ public class HierarchyManager : MonoBehaviour
         });
 
         _blockUIItems.Add(block, newItem);
+        FindObjectOfType<SandboxUIController>()?.StyleHierarchyItem(newItem);
         LayoutRebuilder.ForceRebuildLayoutImmediate(contentPanel.GetComponent<RectTransform>());
     }
 

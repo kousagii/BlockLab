@@ -1,80 +1,98 @@
 using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System;
 
-[System.Serializable]
-public class SceneSaveWrapper 
+[Serializable]
+public class SceneSaveWrapper
 {
-    public string messageType = "SAVE_BUILD"; 
-    public string imageBase64; 
-    public List<BlockSaveData> blocks = new List<BlockSaveData>();
+    public int schemaVersion;
+    public string messageType = "SAVE_BUILD";
+    public string sessionId;
+    public string imageBase64;
+    public int revision;
+    public List<BlockSaveData> blocks;
 }
-
-[System.Serializable]
-public class BlockSaveData 
+[Serializable]
+public class BlockSaveData
 {
-    public string blockName;
-    public int shapeType; 
+    public string blockId, blockName;
+    public int shapeType;
     public Vector3 position;
+    public Quaternion rotation;
     public Color color;
-    public float widthOrRadius;
-    public float height;
-    public float length;
+    public float widthOrRadius, height, length;
 }
-
 public class SaveManager : MonoBehaviour
 {
-    [Header("UI Reference")]
-    public GameObject mainUiCanvas; 
-
+    public GameObject mainUiCanvas;
+    private bool _saving;
+    [Serializable] private class SaveAcknowledgement { public string sessionId; public int revision; }
+    public void AcknowledgeSave(string json) {
+        var acknowledgement = JsonUtility.FromJson<SaveAcknowledgement>(json);
+        if (acknowledgement != null && acknowledgement.sessionId == GetComponent<LoadManager>().SessionId)
+            WorkspaceState.Saved(acknowledgement.revision);
+    }
+    public void RequestSave(string unused) { ClickSaveBuild(); }
+    public static SceneSaveWrapper Capture()
+    {
+        var wrapper = new SceneSaveWrapper { schemaVersion = 2, revision = WorkspaceState.Revision, blocks = new List<BlockSaveData>() };
+        foreach (var block in FindObjectsOfType<BlockData>())
+        {
+            if (block.IsPreview) continue;
+            block.EnsureIdentity();
+            wrapper.blocks.Add(new BlockSaveData {
+                blockId = block.blockId, blockName = block.name, shapeType = (int)block.shapeType,
+                position = block.transform.position, rotation = block.transform.rotation,
+                color = block.blockColor, widthOrRadius = block.widthOrRadius,
+                height = block.height, length = block.length
+            });
+        }
+        return wrapper;
+    }
     public void ClickSaveBuild()
     {
-        StartCoroutine(CaptureScreenshotAndSave());
+        if (!_saving) StartCoroutine(CaptureScreenshotAndSave());
     }
-
     private IEnumerator CaptureScreenshotAndSave()
     {
-
-        if (mainUiCanvas != null)
-        {
-            mainUiCanvas.SetActive(false);
-        }
+        _saving = true;
+        bool wasVisible = mainUiCanvas != null && mainUiCanvas.activeSelf;
+        if (mainUiCanvas != null) mainUiCanvas.SetActive(false);
         yield return new WaitForEndOfFrame();
-        int width = Screen.width;
-        int height = Screen.height;
-        Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-        tex.Apply();
-        if (mainUiCanvas != null)
+        Texture2D full = null, thumbnail = null;
+        RenderTexture target = null;
+        RenderTexture previous = RenderTexture.active;
+        try
         {
-            mainUiCanvas.SetActive(true);
+            var wrapper = Capture();
+            var loader = GetComponent<LoadManager>();
+            wrapper.sessionId = loader != null ? loader.SessionId : "";
+            full = ScreenCapture.CaptureScreenshotAsTexture();
+            int width = Mathf.Min(384, full.width);
+            int height = Mathf.Max(1, Mathf.RoundToInt(full.height * (width / (float)full.width)));
+            target = RenderTexture.GetTemporary(width, height, 0);
+            Graphics.Blit(full, target);
+            RenderTexture.active = target;
+            thumbnail = new Texture2D(width, height, TextureFormat.RGB24, false);
+            thumbnail.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            thumbnail.Apply();
+            wrapper.imageBase64 = Convert.ToBase64String(thumbnail.EncodeToJPG(65));
+            SendToFlutter.Send(JsonUtility.ToJson(wrapper));
         }
-        byte[] imageBytes = tex.EncodeToJPG(50);
-        Destroy(tex);
-        string base64Image = Convert.ToBase64String(imageBytes);
-
-        SceneSaveWrapper wrapper = new SceneSaveWrapper();
-        wrapper.imageBase64 = base64Image;
-
-        BlockData[] allBlocks = FindObjectsOfType<BlockData>();
-        foreach (BlockData block in allBlocks)
+        catch (Exception error)
         {
-            BlockSaveData data = new BlockSaveData();
-            data.blockName = block.gameObject.name;
-            data.shapeType = (int)block.shapeType; 
-            data.position = block.transform.position;
-            data.color = block.blockColor;
-            data.widthOrRadius = block.widthOrRadius;
-            data.height = block.height;
-            data.length = block.length;
-
-            wrapper.blocks.Add(data);
+            Debug.LogException(error);
+            SendToFlutter.Send("{\"messageType\":\"ERROR\",\"message\":\"Could not capture this build. Try saving again.\"}");
         }
-
-        string jsonString = JsonUtility.ToJson(wrapper);
-
-        Debug.Log("Exporting clean thumbnail to Flutter!");
-        SendToFlutter.Send(jsonString);
+        finally
+        {
+            RenderTexture.active = previous;
+            if (target != null) RenderTexture.ReleaseTemporary(target);
+            if (full != null) Destroy(full);
+            if (thumbnail != null) Destroy(thumbnail);
+            if (mainUiCanvas != null) mainUiCanvas.SetActive(wasVisible);
+            _saving = false;
+        }
     }
 }
