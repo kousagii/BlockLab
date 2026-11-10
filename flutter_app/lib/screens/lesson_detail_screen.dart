@@ -136,10 +136,27 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (step['title'] is String) ...[
+                    Text(
+                      step['title'] as String,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Text(
                     step['text'] as String,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
+                  if (step['check'] is String)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Look for: ${step['check']}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
                   if (reference != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 20),

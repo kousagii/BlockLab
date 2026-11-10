@@ -58,6 +58,21 @@ class _WorksScreenState extends State<WorksScreen> {
     _refresh();
   }
 
+  Future<void> _picture(BlockBuild work) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => SandboxScreen(
+          isarService: widget.isarService,
+          initialBuildJson: work.sceneDataJson,
+          existingBuildId: work.id,
+          buildName: work.buildName,
+          pictureOnly: true,
+        ),
+      ),
+    );
+  }
+
   Future<void> _rename(BlockBuild work) async {
     final controller = TextEditingController(text: work.buildName);
     final name = await showDialog<String>(
@@ -243,16 +258,21 @@ class _WorksScreenState extends State<WorksScreen> {
                               PopupMenuButton<String>(
                                 tooltip: 'Options for ${work.buildName}',
                                 onSelected: (value) => _run(() async {
-                                  if (value == 'share') {
-                                    await _sharing.share(work);
+                                  if (value == 'picture') await _picture(work);
+                                  if (value == 'export') {
+                                    await _sharing.exportBuild(work);
                                   }
                                   if (value == 'rename') await _rename(work);
                                   if (value == 'delete') await _delete(work);
                                 }),
                                 itemBuilder: (_) => const [
                                   PopupMenuItem(
-                                    value: 'share',
-                                    child: Text('Share editable build'),
+                                    value: 'picture',
+                                    child: Text('Share picture'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'export',
+                                    child: Text('Export editable build'),
                                   ),
                                   PopupMenuItem(
                                     value: 'rename',

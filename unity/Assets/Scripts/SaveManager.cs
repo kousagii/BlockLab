@@ -27,6 +27,90 @@ public class SaveManager : MonoBehaviour
 {
     public GameObject mainUiCanvas;
     private bool _saving;
+    private bool _pictureCanvasWasVisible;
+    private readonly List<Outline> _pictureOutlines = new List<Outline>();
+    [Serializable] private class PictureReply {
+        public string messageType, sessionId, requestId, imageBase64;
+    }
+
+    public void SetPictureMode(string value)
+    {
+        bool enabled = value == "true";
+        if (SelectionManager.PictureMode == enabled) return;
+        GetComponent<MoveGizmo>()?.End();
+        FindObjectOfType<SelectionManager>()?.FinishDrag();
+        SelectionManager.PictureMode = enabled;
+        if (enabled) {
+            _pictureCanvasWasVisible = mainUiCanvas != null && mainUiCanvas.activeSelf;
+            if (mainUiCanvas != null) mainUiCanvas.SetActive(false);
+            _pictureOutlines.Clear();
+            foreach (var block in FindObjectsOfType<BlockData>()) {
+                var outline = block.GetComponent<Outline>();
+                if (outline != null && outline.enabled) { _pictureOutlines.Add(outline); outline.enabled = false; }
+            }
+        } else {
+            if (mainUiCanvas != null) mainUiCanvas.SetActive(_pictureCanvasWasVisible);
+            foreach (var outline in _pictureOutlines) if (outline != null) outline.enabled = true;
+            _pictureOutlines.Clear();
+        }
+    }
+
+    public void RequestPicture(string requestId)
+    {
+        if (_saving || !SelectionManager.PictureMode) {
+            SendPicture("PICTURE_ERROR", requestId, null);
+            return;
+        }
+        StartCoroutine(CapturePicture(requestId));
+    }
+
+    private void SendPicture(string type, string requestId, string image)
+    {
+        SendToFlutter.Send(JsonUtility.ToJson(new PictureReply {
+            messageType = type, sessionId = GetComponent<LoadManager>().SessionId,
+            requestId = requestId, imageBase64 = image
+        }));
+    }
+
+    private IEnumerator CapturePicture(string requestId)
+    {
+        _saving = true;
+        bool cameraWasLocked = CameraHandler.IsCameraLocked;
+        CameraHandler.IsCameraLocked = true;
+        yield return new WaitForEndOfFrame();
+        try { SendPicture("PICTURE_READY", requestId, Convert.ToBase64String(CapturePictureBytes())); }
+        catch (Exception error) { Debug.LogException(error); SendPicture("PICTURE_ERROR", requestId, null); }
+        finally { CameraHandler.IsCameraLocked = cameraWasLocked; _saving = false; }
+    }
+
+    // Render the chosen camera view at up to 2048 pixels on its longest edge.
+    // Overlay controls and Flutter chrome are never part of this image.
+    public static byte[] CapturePictureBytes()
+    {
+        var camera = Camera.main;
+        if (camera == null) throw new InvalidOperationException("Missing workspace camera");
+        float scale = Mathf.Min(1, 2048f / Mathf.Max(Screen.width, Screen.height));
+        int width = Mathf.Max(1, Mathf.RoundToInt(Screen.width * scale));
+        int height = Mathf.Max(1, Mathf.RoundToInt(Screen.height * scale));
+        var previousTarget = camera.targetTexture;
+        var previousActive = RenderTexture.active;
+        var target = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
+        Texture2D image = null;
+        try {
+            camera.targetTexture = target;
+            camera.Render();
+            RenderTexture.active = target;
+            image = new Texture2D(width, height, TextureFormat.RGB24, false);
+            image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            image.Apply();
+            return image.EncodeToJPG(92);
+        } finally {
+            camera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            RenderTexture.ReleaseTemporary(target);
+            if (image != null) Destroy(image);
+        }
+    }
     [Serializable] private class SaveAcknowledgement { public string sessionId; public int revision; }
     public void AcknowledgeSave(string json) {
         var acknowledgement = JsonUtility.FromJson<SaveAcknowledgement>(json);
@@ -52,6 +136,7 @@ public class SaveManager : MonoBehaviour
     }
     public void ClickSaveBuild()
     {
+        if (SelectionManager.PictureMode) return;
         GetComponent<MoveGizmo>()?.End();
         FindObjectOfType<SelectionManager>()?.FinishDrag();
         if (!_saving) StartCoroutine(CaptureScreenshotAndSave());

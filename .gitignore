@@ -23,6 +23,7 @@ flutter_app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistra
 *.[mM][dD]
 !/README.md
 /.cleanup-backup/
+/docs/screenshots/
 *.apk
 *.aab
 *.iml

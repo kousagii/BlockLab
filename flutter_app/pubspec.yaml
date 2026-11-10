@@ -36,6 +36,7 @@ flutter:
   assets:
     - assets/fonts/OFL.txt
     - assets/images/logo_blocklab.png
+    - assets/images/guides/
     - assets/images/lesson3/
     - assets/images/lesson4/
     - assets/images/lesson5/

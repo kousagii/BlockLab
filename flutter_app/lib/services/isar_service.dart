@@ -64,7 +64,7 @@ class IsarService {
       final progress =
           await isar.userProgress.where().findFirst() ?? UserProgress();
       if (!progress.finishedLessonNames.contains(name)) {
-        progress.finishedLessonNames.add(name);
+        progress.finishedLessonNames = [...progress.finishedLessonNames, name];
       }
       await isar.userProgress.put(progress);
     });

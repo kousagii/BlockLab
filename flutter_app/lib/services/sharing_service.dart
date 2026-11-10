@@ -7,28 +7,48 @@ import '../models/isar_models.dart';
 import '../models/scene_document.dart';
 
 class SharingService {
-  Future<void> share(BlockBuild build) async {
+  final Future<Directory> Function() _temporaryDirectory;
+  final Future<ShareResult> Function(ShareParams) _shareFiles;
+
+  SharingService({
+    Future<Directory> Function()? temporaryDirectory,
+    Future<ShareResult> Function(ShareParams)? shareFiles,
+  }) : _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory,
+       _shareFiles = shareFiles ?? SharePlus.instance.share;
+
+  Future<void> exportBuild(BlockBuild build) async {
     final scene = SceneDocument.parse(build.sceneDataJson);
-    final dir = await getTemporaryDirectory();
+    final dir = await _temporaryDirectory();
     final name = build.buildName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
     final file = File('${dir.path}/${name}_${build.id}.blocklab.json');
     await file.writeAsString(scene.encode());
-    final files = [XFile(file.path, mimeType: 'application/json')];
-    if (scene.thumbnail?.isNotEmpty ?? false) {
-      final bytes = base64Decode(scene.thumbnail!);
-      final png = bytes[0] == 137;
-      final extension = png ? 'png' : 'jpg';
-      final preview = File('${dir.path}/${name}_${build.id}.$extension');
-      await preview.writeAsBytes(bytes);
-      files.add(
-        XFile(preview.path, mimeType: png ? 'image/png' : 'image/jpeg'),
-      );
-    }
-    await SharePlus.instance.share(
+    await _shareFiles(
       ShareParams(
-        files: files,
+        files: [XFile(file.path, mimeType: 'application/json')],
         title: build.buildName,
-        text: 'Built with BlockLab. Import the JSON file to edit this work.',
+        text: 'Import this file into BlockLab to edit the build.',
+      ),
+    );
+  }
+
+  Future<void> sharePicture(String name, String imageBase64) async {
+    if (imageBase64.length > 16 * 1024 * 1024) {
+      throw const FormatException('Picture is too large.');
+    }
+    final bytes = base64Decode(imageBase64);
+    if (bytes.length < 4 || bytes[0] != 0xff || bytes[1] != 0xd8) {
+      throw const FormatException('Could not read the picture. Please retry.');
+    }
+    final dir = await _temporaryDirectory();
+    final safeName = name.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    final file = File(
+      '${dir.path}/${safeName}_${DateTime.now().microsecondsSinceEpoch}.jpg',
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    await _shareFiles(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'image/jpeg')],
+        title: name,
       ),
     );
   }

@@ -56,7 +56,7 @@ public class UIDragItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         var hits=new List<RaycastResult>();
         if(EventSystem.current!=null)EventSystem.current.RaycastAll(data,hits);
         if(!_valid || hits.Count>0){Cancel();return;}
-        var placed=_preview;_preview=null; // Opening properties can disable this palette item.
+        var placed=_preview;_preview=null;
         foreach(var col in placed.GetComponentsInChildren<Collider>())col.enabled=true;
         var renderer=placed.GetComponentInChildren<Renderer>();if(renderer!=null)renderer.material=_original;
         var block=placed.GetComponent<BlockData>();if(block!=null)block.IsPreview=false;
@@ -64,7 +64,7 @@ public class UIDragItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         hierarchyManager?.AddBlockToList(placed);
         UndoManager.Instance?.RecordCommand(new UndoManager.AddCommand(placed,hierarchyManager));
         ui?.EndPaletteDrag();
-        if(block!=null)selectionManager?.ForceSelectBlock(block);
+        if(block!=null)selectionManager?.SelectWithoutProperties(block);
     }
     private void Cancel()
     {

@@ -8,6 +8,70 @@ import 'package:unity_flutter/services/profile_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets(
+    'expanded beginner steps show explanations, checks and reachable navigation',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final profile = ProfileService(await SharedPreferences.getInstance());
+      final catalog = await Lesson.load();
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      for (final scale in [1.0, 2.0]) {
+        for (final lesson in catalog.where(
+          (l) => l.id == 'basics' || l.id == 'dimensions',
+        )) {
+          for (var index = 0; index < lesson.steps.length; index++) {
+            await profile.saveLessonStep(lesson.id, index);
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: AppTheme.build(
+                  scale == 1 ? Brightness.light : Brightness.dark,
+                ),
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      LessonGuide(
+                        key: ValueKey('${lesson.id}-$index-$scale'),
+                        lesson: lesson,
+                        profile: profile,
+                        onComplete: () async {},
+                      ),
+                      const Expanded(child: SizedBox()),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            final step = lesson.steps[index];
+            expect(find.text(step['title'] as String), findsOneWidget);
+            expect(find.text('Look for: ${step['check']}'), findsOneWidget);
+            await tester.ensureVisible(
+              find.text(
+                index == lesson.steps.length - 1 ? 'Mark complete' : 'Next',
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(
+              tester.takeException(),
+              isNull,
+              reason: '${lesson.id} step $index at scale $scale',
+            );
+          }
+        }
+      }
+    },
+  );
   Lesson lesson() => Lesson({
     'id': 'guide-test',
     'title': 'Build a tower',

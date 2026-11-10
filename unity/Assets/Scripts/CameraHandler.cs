@@ -57,7 +57,7 @@ public class CameraHandler : MonoBehaviour
         {
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
             _cam.fieldOfView = Mathf.Clamp(_cam.fieldOfView - Input.mouseScrollDelta.y * 3f, minFOV, maxFOV);
-            if (Input.GetMouseButton(1))
+            if (Input.GetMouseButton(1) || (SelectionManager.PictureMode && Input.GetMouseButton(0)))
             {
                 transform.RotateAround(orbitTarget.position, Vector3.up, Input.GetAxis("Mouse X") * 3f);
                 transform.RotateAround(orbitTarget.position, transform.right, -Input.GetAxis("Mouse Y") * 3f);

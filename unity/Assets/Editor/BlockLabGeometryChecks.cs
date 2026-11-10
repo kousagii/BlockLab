@@ -69,6 +69,59 @@ public static class BlockLabGeometryChecks
         UnityEngine.Object.FindObjectOfType<SandboxUIController>().ShowMove();
         Debug.Log("BLOCKLAB_GEOMETRY_CHECKS_PASSED: five rotated shapes, mesh pivots, narrow-phase collision, fixed neighbors, carried stacks, rollback, camera angles.");
     }
+    public static void CheckPointerSelection() {
+        var selection=UnityEngine.Object.FindObjectOfType<SelectionManager>();
+        var ui=UnityEngine.Object.FindObjectOfType<SandboxUIController>();
+        var block=selection.SelectedBlock;
+        UndoManager.Instance.ClearHistory();selection.DeselectCurrent();
+        var center=BlockPlacement.BoundsOf(block).center;
+        Vector2 press=Camera.main.WorldToScreenPoint(center);
+        selection.BeginPointerBlock(block,center,press);
+        Require(!ui.properties.gameObject.activeSelf,"Pointer down opened properties before tap release");
+        selection.UpdatePointerBlock(press+Vector2.one*(2*ui.canvas.scaleFactor));
+        selection.EndPointerBlock();
+        Require(ui.properties.gameObject.activeSelf && !UndoManager.Instance.CanUndo,"A stationary tap did not open properties cleanly");
+
+        var start=block.transform.position;
+        selection.BeginPointerBlock(block,center,press);
+        selection.UpdatePointerBlock(press+Vector2.right*(80*ui.canvas.scaleFactor));
+        Require(!ui.properties.gameObject.activeSelf,"Direct dragging left properties visible");
+        selection.EndPointerBlock();
+        Require(!ui.properties.gameObject.activeSelf,"Releasing a dragged block reopened properties");
+        Require(Vector3.Distance(start,block.transform.position)>.1f,"Drag regression did not actually move the block");
+        UndoManager.Instance.ClickUndo();
+        Require(!ui.properties.gameObject.activeSelf && Vector3.Distance(start,block.transform.position)<.005f,"Undo reopened properties or lost the drag start");
+        center=BlockPlacement.BoundsOf(block).center;press=Camera.main.WorldToScreenPoint(center);
+        selection.BeginPointerBlock(block,center,press);selection.EndPointerBlock();
+        Require(ui.properties.gameObject.activeSelf,"Tapping after dragging did not reopen properties");
+
+        UndoManager.Instance.ClearHistory();
+        selection.BeginPointerBlock(block,center,press);
+        selection.UpdatePointerBlock(press+Vector2.right*(80*ui.canvas.scaleFactor));selection.CancelDrag();
+        Require(Vector3.Distance(start,block.transform.position)<.005f && !WorkspaceState.Dirty && !UndoManager.Instance.CanUndo,"Cancel did not restore a clean gesture");
+        selection.BeginPointerBlock(block,center,press);
+        selection.UpdatePointerBlock(press+Vector2.right*(80*ui.canvas.scaleFactor));selection.EndPointerBlock(true);
+        Require(!ui.properties.gameObject.activeSelf && Vector3.Distance(start,block.transform.position)<.005f,"A drop on UI moved the block or opened properties");
+        selection.SelectWithoutProperties(block);
+        Require(!ui.properties.gameObject.activeSelf && selection.SelectedBlock==block,"Palette placement selection opened properties");
+        Debug.Log("BLOCKLAB_TAP_DRAG_CHECKS_PASSED: deferred tap, density-scaled slop, direct drag, release, undo, cancellation and placement selection.");
+    }
+    public static void CheckPaletteDrop() {
+        var ui=UnityEngine.Object.FindObjectOfType<SandboxUIController>();
+        var palette=ui.canvas.GetComponentsInChildren<UIDragItem>().First();
+        var count=SaveManager.Capture().blocks.Count;
+        var data=new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) {
+            pressPosition=new Vector2(180,200),position=new Vector2(200,200)
+        };
+        palette.OnBeginDrag(data);
+        data.position=new Vector2(Screen.width-50,Screen.height*.45f);
+        palette.OnDrag(data);palette.OnEndDrag(data);
+        Require(SaveManager.Capture().blocks.Count==count+1,"Palette drag did not place a block");
+        Require(!ui.properties.gameObject.activeSelf,"Palette drop opened properties");
+        Clear();
+        Debug.Log("BLOCKLAB_PALETTE_DROP_CHECKS_PASSED: actual palette drag/drop leaves properties closed.");
+    }
+
     public static void CheckGizmo() {
         var ui=UnityEngine.Object.FindObjectOfType<SandboxUIController>();
         var gizmo=ui.GetComponent<MoveGizmo>();
@@ -76,7 +129,7 @@ public static class BlockLabGeometryChecks
         Require(gizmo.Visible,"Move handles did not appear");
         UndoManager.Instance.ClearHistory();
         var start=block.transform.position;
-        gizmo.Begin(0,Vector2.zero);gizmo.Drag(gizmo.ScreenDeltaForUnits(0,2));gizmo.End();
+        gizmo.Begin(0,Vector2.zero);gizmo.Drag(gizmo.ScreenDeltaForUnits(0,2));Require(!ui.properties.gameObject.activeSelf,"Gizmo dragging left properties visible");gizmo.End();
         Require(Vector3.Distance(block.transform.position,start+Vector3.right*2)<.005f,"Gizmo did not constrain movement to X");
         Require(!CameraHandler.IsCameraLocked && !SelectionManager.isDraggingBlock,"Gizmo retained gesture locks");
         UndoManager.Instance.ClickUndo();Require(Vector3.Distance(block.transform.position,start)<.005f && !UndoManager.Instance.CanUndo,"Gizmo gesture did not make one undo entry");
@@ -87,7 +140,8 @@ public static class BlockLabGeometryChecks
         gizmo.Begin(1,Vector2.zero);gizmo.Drag(gizmo.ScreenDeltaForUnits(1,-2));gizmo.End();
         Require(BlockPlacement.BoundsOf(block).min.y>=-BlockPlacement.Tolerance,"Y gizmo buried a block");
         Require(SaveManager.Capture().blocks.Count==1,"Gizmo leaked into portable scene data");
-        Clear();
+        CheckPointerSelection();
+        ui.ToggleShapes();
         Debug.Log("BLOCKLAB_GIZMO_CHECKS_PASSED: constrained movement, cancellation, floor limits, single undo, redo and save exclusion.");
     }
 }

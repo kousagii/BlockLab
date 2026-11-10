@@ -33,7 +33,7 @@ public class MoveGizmo : MonoBehaviour
     static Vector3 Axis(int axis) => axis==0?Vector3.right:axis==1?Vector3.up:Vector3.forward;
     void LateUpdate() {
         if(IsManipulating && Input.touchCount>1)Cancel();
-        bool visible=selection.SelectedBlock!=null && ui.MoveMode && !SelectionManager.UiBlocked;
+        bool visible=selection.SelectedBlock!=null && (ui.MoveMode || IsManipulating) && !SelectionManager.UiBlocked;
         root.gameObject.SetActive(visible);
         if(!visible){if(IsManipulating)Cancel();return;}
         var block=selection.SelectedBlock;var camera=Camera.main;
@@ -73,6 +73,8 @@ public class MoveGizmo : MonoBehaviour
     }
     public void Drag(Vector2 pointer) {
         if(_axis<0 || _block==null)return;
+        if(Vector2.Distance(pointer,_pointerStart)>8*ui.canvas.scaleFactor && ui.properties.gameObject.activeSelf)
+            selection.SelectWithoutProperties(_block);
         float delta=Mathf.Round(Vector2.Dot(pointer-_pointerStart,_direction)*_unitsPerPixel);
         var target=_start+Axis(_axis)*delta;
         var from=_block.transform.position;

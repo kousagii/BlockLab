@@ -7,7 +7,8 @@ BlockLab is an Android app for learning and creating with 3D building blocks. It
 - Build with Cube, Triangular Prism, Cylinder, Trapezoid and Half Cylinder shapes.
 - Move, resize, recolor and delete blocks, with undo, redo and X/Y/Z move handles.
 - Follow seven guided lessons directly in the sandbox or create freely.
-- Save and reopen editable builds, and share or import them as JSON.
+- Save and reopen editable builds, and export or import them as JSON.
+- Choose a camera angle and share a picture of your build.
 - Choose Light, Dark or System appearance.
 
 ## Build and run
@@ -56,9 +57,10 @@ Open **BlockLab** on the phone. This APK is debug-signed for testing.
 ## Using BlockLab
 
 1. Enter a name and choose **Start building**, or open **Lessons** for guided activities.
-2. Open **Shapes** and drag a shape sideways onto the grid. Select a block directly or through **Objects**. Use **Size** for dimensions, **Color** for colors, and **Move** for X/Y/Z handles. Resizing carries supported blocks above it and stops if there is not enough space.
+2. Open **Shapes** and drag a shape sideways onto the grid. Tap a block, or its name in **Objects**, to open properties. Properties stays hidden during dragging and after a drop. Use **Size** for dimensions, **Color** for colors, and **Move** for X/Y/Z handles. Resizing carries supported blocks above it and stops if there is not enough space.
 3. Drag empty space to orbit, pinch to zoom, and move two fingers to pan. More controls are explained in **How to build** in the sandbox menu.
-4. Tap **Save** before leaving. Reopen creations in **Works**, where you can also rename, share, delete or import builds.
-5. Open **Settings** from Home or the sandbox menu to change the appearance.
+4. Tap **Save** before leaving. Reopen creations in **My works**, where you can also rename, delete or import builds.
+5. Choose **Share picture** from a build's menu or the sandbox menu. Orbit, zoom and pan to frame your build, then share the picture. Choose **Export editable build** in **My works** to send a `.blocklab.json` file that another user can import and edit.
+6. Open **Settings** from Home or the sandbox menu to change the appearance.
 
 In a lesson, use the guide above the workspace to change steps or open a reference image. You can collapse it while building; your current step is saved.

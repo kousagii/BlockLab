@@ -139,10 +139,29 @@ class _LessonGuideState extends State<LessonGuide> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (step['title'] is String) ...[
+                      Text(
+                        step['title'] as String,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Text(
                       step['text'] as String,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                    if (step['check'] is String)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Look for: ${step['check']}',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,

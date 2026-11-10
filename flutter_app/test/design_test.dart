@@ -17,6 +17,7 @@ import 'package:unity_flutter/screens/works_screen.dart';
 import 'package:unity_flutter/screens/lessons_screen.dart';
 import 'package:unity_flutter/screens/lesson_detail_screen.dart';
 import 'package:unity_flutter/screens/lesson_guide.dart';
+import 'package:unity_flutter/screens/picture_controls.dart';
 import 'package:unity_flutter/services/appearance_controller.dart';
 import 'package:unity_flutter/services/isar_service.dart';
 import 'package:unity_flutter/services/profile_service.dart';
@@ -131,6 +132,17 @@ void main() {
               profile: profile,
             ),
             'settings': const SettingsScreen(),
+            'picture-controls': Scaffold(
+              appBar: AppBar(title: const Text('Share picture')),
+              body: const SizedBox.expand(),
+              bottomNavigationBar: PictureControls(
+                busy: false,
+                ready: true,
+                onShare: () {},
+                onClose: () {},
+                closeLabel: 'Keep building',
+              ),
+            ),
             'onboarding': NameInputScreen(isarService: store, profile: profile),
             'lesson-guide': Scaffold(
               body: Column(

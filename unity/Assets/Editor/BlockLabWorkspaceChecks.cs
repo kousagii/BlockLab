@@ -114,6 +114,19 @@ public static class BlockLabWorkspaceChecks
             new UndoManager.AddCommand(added, hierarchy).Undo();
             Require(!added.activeSelf, "Add undo failed");
             UnityEngine.Object.FindObjectOfType<SelectionManager>().ForceSelectBlock(block);
+            var pictureSelection=UnityEngine.Object.FindObjectOfType<SelectionManager>();
+            var beforePicture=SaveManager.Capture();
+            var pictureCameraPosition=Camera.main.transform.position;
+            save.SetPictureMode("true");
+            Require(SelectionManager.PictureMode && !save.mainUiCanvas.activeSelf,"Picture mode left editing UI visible");
+            Require(!block.GetComponent<Outline>().enabled,"Picture mode left selection outline visible");
+            pictureSelection.BeginPointerBlock(block,block.transform.position,Vector2.zero);
+            Require(!SelectionManager.isDraggingBlock,"Picture mode allowed block dragging");
+            Require(!CameraHandler.IsCameraLocked && !SelectionManager.UiBlocked,"Picture mode locked camera gestures");
+            save.SetPictureMode("false");
+            Require(save.mainUiCanvas.activeSelf && block.GetComponent<Outline>().enabled,"Leaving picture mode lost editor UI/selection");
+            Require(SaveManager.Capture().revision==beforePicture.revision && Camera.main.transform.position==pictureCameraPosition,
+                "Picture mode changed the scene or reset the chosen angle");
             int frame = Time.frameCount;
             EditorApplication.CallbackFunction finish = null;
             finish = () => {
@@ -134,8 +147,18 @@ public static class BlockLabWorkspaceChecks
                         EditorApplication.update-=checkGizmo;
                         try {
                             BlockLabGeometryChecks.CheckGizmo();
-                            Debug.Log("BLOCKLAB_WORKSPACE_CHECKS_PASSED: save/load, history, geometry, resize rollback, stacked support, and runtime gizmo.");
-                            ExitSafely(0);
+                            int paletteFrame=Time.frameCount+3;
+                            EditorApplication.CallbackFunction checkPalette=null;
+                            checkPalette=()=> {
+                                if(Time.frameCount<paletteFrame)return;
+                                EditorApplication.update-=checkPalette;
+                                try {
+                                    BlockLabGeometryChecks.CheckPaletteDrop();
+                                    Debug.Log("BLOCKLAB_WORKSPACE_CHECKS_PASSED: save/load, history, geometry, gizmo and tap-versus-drag selection.");
+                                    ExitSafely(0);
+                                } catch(Exception error) {Debug.LogException(error);ExitSafely(1);}
+                            };
+                            EditorApplication.update+=checkPalette;
                         } catch(Exception error) {Debug.LogException(error);ExitSafely(1);}
                     };
                     EditorApplication.update+=checkGizmo;

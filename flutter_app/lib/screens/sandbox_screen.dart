@@ -8,6 +8,8 @@ import '../services/profile_service.dart';
 import 'lesson_guide.dart';
 import '../services/isar_service.dart';
 import '../services/unity_bridge.dart';
+import '../services/sharing_service.dart';
+import 'picture_controls.dart';
 import 'settings_screen.dart';
 
 class SandboxScreen extends StatefulWidget {
@@ -17,6 +19,8 @@ class SandboxScreen extends StatefulWidget {
   final Future<void> Function(int id)? onSaved;
   final Lesson? lesson;
   final ProfileService? profile;
+  final bool pictureOnly;
+  final SharingService? sharingService;
   const SandboxScreen({
     super.key,
     required this.isarService,
@@ -26,6 +30,8 @@ class SandboxScreen extends StatefulWidget {
     this.onSaved,
     this.lesson,
     this.profile,
+    this.pictureOnly = false,
+    this.sharingService,
   });
   @override
   State<SandboxScreen> createState() => _SandboxScreenState();
@@ -33,7 +39,11 @@ class SandboxScreen extends StatefulWidget {
 
 class _SandboxScreenState extends State<SandboxScreen> {
   late final UnityBridge _bridge;
-  Timer? _poll, _deadline, _saveDeadline;
+  late final SharingService _sharing;
+  Timer? _poll, _deadline, _saveDeadline, _pictureDeadline;
+  late bool _pictureMode;
+  bool _capturing = false;
+  String? _pictureRequest;
   String? _error, _appearance;
   bool _saving = false,
       _persisting = false,
@@ -46,6 +56,8 @@ class _SandboxScreenState extends State<SandboxScreen> {
   void initState() {
     super.initState();
     _buildId = widget.existingBuildId;
+    _sharing = widget.sharingService ?? SharingService();
+    _pictureMode = widget.pictureOnly;
     _bridge = UnityBridge(
       sessionId: DateTime.now().microsecondsSinceEpoch.toString(),
       send: sendToUnity,
@@ -91,14 +103,14 @@ class _SandboxScreenState extends State<SandboxScreen> {
 
   void _notice(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
   void _save() {
-    if (!_bridge.started || _saving) return;
+    if (!_bridge.started || _saving || _pictureMode) return;
     setState(() {
       _saving = true;
     });
@@ -113,6 +125,36 @@ class _SandboxScreenState extends State<SandboxScreen> {
     sendToUnity('SaveLoadSystem', 'RequestSave', '');
   }
 
+  void _setPictureMode(bool enabled) {
+    if (!_bridge.started || _saving || _capturing) return;
+    sendToUnity('SaveLoadSystem', 'SetPictureMode', enabled.toString());
+    setState(() => _pictureMode = enabled);
+  }
+
+  void _takePicture() {
+    if (!_bridge.started || !_pictureMode || _capturing) return;
+    final request = DateTime.now().microsecondsSinceEpoch.toString();
+    setState(() {
+      _capturing = true;
+      _pictureRequest = request;
+    });
+    sendToUnity('SaveLoadSystem', 'SetUiBlocked', 'true');
+    _pictureDeadline = Timer(const Duration(seconds: 15), () {
+      if (mounted && _pictureRequest == request) {
+        _finishPicture();
+        _notice('Could not take the picture. Please retry.');
+      }
+    });
+    sendToUnity('SaveLoadSystem', 'RequestPicture', request);
+  }
+
+  void _finishPicture() {
+    _pictureDeadline?.cancel();
+    _pictureRequest = null;
+    sendToUnity('SaveLoadSystem', 'SetUiBlocked', 'false');
+    if (mounted) setState(() => _capturing = false);
+  }
+
   Future<void> _onUnityMessage(String message) async {
     final data = _bridge.receive(message);
     if (data == null || !mounted) return;
@@ -121,6 +163,9 @@ class _SandboxScreenState extends State<SandboxScreen> {
         _poll?.cancel();
         _deadline?.cancel();
         _sendAppearance();
+        if (_pictureMode) {
+          sendToUnity('SaveLoadSystem', 'SetPictureMode', 'true');
+        }
         setState(() {
           _error = null;
         });
@@ -147,6 +192,29 @@ class _SandboxScreenState extends State<SandboxScreen> {
           setState(() {
             _error = data['message'] as String? ?? 'Could not open this work.';
           });
+        }
+      case 'PICTURE_READY':
+      case 'PICTURE_ERROR':
+        if (!_capturing ||
+            _pictureRequest == null ||
+            data['requestId'] != _pictureRequest) {
+          return;
+        }
+        _pictureDeadline?.cancel();
+        // Consume once so duplicate responses cannot open another share sheet.
+        _pictureRequest = null;
+        try {
+          if (data['messageType'] == 'PICTURE_ERROR') {
+            throw const FormatException('Could not take the picture.');
+          }
+          await _sharing.sharePicture(
+            widget.buildName ?? 'BlockLab build',
+            data['imageBase64'] as String,
+          );
+        } catch (_) {
+          _notice('Could not share the picture. Please retry.');
+        } finally {
+          _finishPicture();
         }
       case 'SAVE_BUILD':
         if (!_bridge.started || !_saving || _persisting) return;
@@ -200,6 +268,14 @@ class _SandboxScreenState extends State<SandboxScreen> {
   }
 
   Future<void> _leave() async {
+    if (_capturing) {
+      _notice('Please finish sharing the picture first.');
+      return;
+    }
+    if (_pictureMode && !widget.pictureOnly) {
+      _setPictureMode(false);
+      return;
+    }
     if (_saving) {
       _notice('Please wait for saving to finish.');
       return;
@@ -225,6 +301,9 @@ class _SandboxScreenState extends State<SandboxScreen> {
       if (leave != true) return;
     }
     if (mounted) {
+      if (_pictureMode) {
+        sendToUnity('SaveLoadSystem', 'SetPictureMode', 'false');
+      }
       setState(() {
         _allowPop = true;
       });
@@ -254,7 +333,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Edit a block\nTap it or choose it in Objects. Adjust its size or color in the panel. Drag to move it.',
+              'Edit a block\nTap a block or choose it in Objects to open properties. Dragging moves it with properties hidden. Tap again when you want to edit.',
             ),
             const SizedBox(height: 16),
             const Text(
@@ -262,7 +341,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Keep your creation\nTap Save before leaving. Share an editable copy from Works.',
+              'Keep your creation\nTap Save before leaving. Choose Share picture to set a camera angle. Export an editable build file from My works.',
             ),
             const SizedBox(height: 16),
             Align(
@@ -282,6 +361,7 @@ class _SandboxScreenState extends State<SandboxScreen> {
     _poll?.cancel();
     _deadline?.cancel();
     _saveDeadline?.cancel();
+    _pictureDeadline?.cancel();
     super.dispose();
   }
 
@@ -294,6 +374,20 @@ class _SandboxScreenState extends State<SandboxScreen> {
         if (!didPop) unawaited(_leave());
       },
       child: Scaffold(
+        bottomNavigationBar: _pictureMode
+            ? SafeArea(
+                top: false,
+                child: PictureControls(
+                  busy: _capturing,
+                  ready: _bridge.started,
+                  onShare: _takePicture,
+                  onClose: _leave,
+                  closeLabel: widget.pictureOnly
+                      ? 'Back to works'
+                      : 'Keep building',
+                ),
+              )
+            : null,
         appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: IconButton(
@@ -303,113 +397,142 @@ class _SandboxScreenState extends State<SandboxScreen> {
           ),
           titleSpacing: 0,
           title: Text(
-            widget.buildName ?? 'Sandbox',
+            _pictureMode ? 'Share picture' : widget.buildName ?? 'Sandbox',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
-            IconButton(
-              tooltip: 'Undo',
-              onPressed: _bridge.started && _canUndo && !_saving
-                  ? () => sendToUnity('SaveLoadSystem', 'RequestUndo', '')
-                  : null,
-              icon: const Icon(Icons.undo_rounded),
-            ),
-            IconButton(
-              tooltip: _saving ? 'Saving build' : 'Save build',
-              onPressed: _bridge.started && !_saving ? _save : null,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      Icons.save_outlined,
-                      color: _bridge.started ? colors.primary : null,
-                    ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'More workspace options',
-              onSelected: (value) {
-                if (value == 'settings') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  );
-                }
-                if (value == 'help') _help();
-                if (value == 'redo') {
-                  sendToUnity('SaveLoadSystem', 'RequestRedo', '');
-                }
-                if (value == 'reset') {
-                  sendToUnity('SaveLoadSystem', 'ResetView', '');
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'redo',
-                  enabled: _bridge.started && _canRedo && !_saving,
-                  child: const Text('Redo'),
-                ),
-                const PopupMenuItem(value: 'help', child: Text('How to build')),
-                PopupMenuItem(
-                  value: 'reset',
-                  enabled: _bridge.started,
-                  child: const Text('Reset view'),
-                ),
-                const PopupMenuItem(value: 'settings', child: Text('Settings')),
-              ],
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: Size.fromHeight(
-              28 * MediaQuery.textScalerOf(context).scale(13) / 13,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                _saving
-                    ? 'Saving…'
-                    : !_bridge.started
-                    ? 'Opening workspace…'
-                    : _dirty
-                    ? 'Unsaved changes'
-                    : _buildId != null
-                    ? 'Saved on this device'
-                    : 'Ready to build',
-                style: Theme.of(context).textTheme.bodySmall,
+            if (_pictureMode)
+              IconButton(
+                tooltip: 'Reset view',
+                onPressed: _bridge.started && !_capturing
+                    ? () => sendToUnity('SaveLoadSystem', 'ResetView', '')
+                    : null,
+                icon: const Icon(Icons.center_focus_strong_outlined),
               ),
-            ),
-          ),
+            if (!_pictureMode) ...[
+              IconButton(
+                tooltip: 'Undo',
+                onPressed: _bridge.started && _canUndo && !_saving
+                    ? () => sendToUnity('SaveLoadSystem', 'RequestUndo', '')
+                    : null,
+                icon: const Icon(Icons.undo_rounded),
+              ),
+              IconButton(
+                tooltip: _saving ? 'Saving build' : 'Save build',
+                onPressed: _bridge.started && !_saving ? _save : null,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.save_outlined,
+                        color: _bridge.started ? colors.primary : null,
+                      ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'More workspace options',
+                onSelected: (value) {
+                  if (value == 'settings') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsScreen(),
+                      ),
+                    );
+                  }
+                  if (value == 'help') _help();
+                  if (value == 'picture') _setPictureMode(true);
+                  if (value == 'redo') {
+                    sendToUnity('SaveLoadSystem', 'RequestRedo', '');
+                  }
+                  if (value == 'reset') {
+                    sendToUnity('SaveLoadSystem', 'ResetView', '');
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'picture',
+                    enabled: _bridge.started && !_saving,
+                    child: const Text('Share picture'),
+                  ),
+                  PopupMenuItem(
+                    value: 'redo',
+                    enabled: _bridge.started && _canRedo && !_saving,
+                    child: const Text('Redo'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'help',
+                    child: Text('How to build'),
+                  ),
+                  PopupMenuItem(
+                    value: 'reset',
+                    enabled: _bridge.started,
+                    child: const Text('Reset view'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Text('Settings'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+          bottom: _pictureMode
+              ? null
+              : PreferredSize(
+                  preferredSize: Size.fromHeight(
+                    28 * MediaQuery.textScalerOf(context).scale(13) / 13,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _saving
+                          ? 'Saving…'
+                          : !_bridge.started
+                          ? 'Opening workspace…'
+                          : _dirty
+                          ? 'Unsaved changes'
+                          : _buildId != null
+                          ? 'Saved on this device'
+                          : 'Ready to build',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ),
         ),
         body: SafeArea(
           top: false,
           child: Column(
             children: [
               if (widget.lesson != null && widget.profile != null)
-                LessonGuide(
-                  lesson: widget.lesson!,
-                  profile: widget.profile!,
-                  onModalChanged: (blocked) {
-                    if (_bridge.started) {
-                      sendToUnity(
-                        'SaveLoadSystem',
-                        'SetUiBlocked',
-                        blocked.toString(),
+                Visibility(
+                  visible: !_pictureMode,
+                  maintainState: true,
+                  child: LessonGuide(
+                    lesson: widget.lesson!,
+                    profile: widget.profile!,
+                    onModalChanged: (blocked) {
+                      if (_bridge.started) {
+                        sendToUnity(
+                          'SaveLoadSystem',
+                          'SetUiBlocked',
+                          blocked.toString(),
+                        );
+                      }
+                    },
+                    onComplete: () async {
+                      await widget.isarService.completeLesson(
+                        widget.lesson!.title,
                       );
-                    }
-                  },
-                  onComplete: () async {
-                    await widget.isarService.completeLesson(
-                      widget.lesson!.title,
-                    );
-                    await widget.profile!.completeLesson(widget.lesson!.id);
-                  },
+                      await widget.profile!.completeLesson(widget.lesson!.id);
+                    },
+                  ),
                 ),
               Expanded(
+                key: const ValueKey('workspace'),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

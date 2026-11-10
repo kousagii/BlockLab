@@ -12,6 +12,7 @@ import 'package:unity_flutter/services/profile_service.dart';
 import 'package:unity_flutter/design/app_theme.dart';
 import 'package:unity_flutter/screens/sandbox_screen.dart';
 import 'package:unity_flutter/services/isar_service.dart';
+import 'package:unity_flutter/services/sharing_service.dart';
 import 'scene_document_test.dart' show fixture;
 
 class ControlledStore extends IsarService {
@@ -29,6 +30,16 @@ class ControlledStore extends IsarService {
   Future<void> updateBuild(int id, String json, String? image) async {
     updates++;
     updatedId = id;
+  }
+}
+
+class ControlledSharing extends SharingService {
+  int pictures = 0;
+  Completer<void>? pending;
+  @override
+  Future<void> sharePicture(String name, String imageBase64) async {
+    pictures++;
+    await pending?.future;
   }
 }
 
@@ -64,6 +75,7 @@ void main() {
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
       final store = ControlledStore();
+      final sharing = ControlledSharing();
       SharedPreferences.setMockInitialValues({});
       final profile = ProfileService(await SharedPreferences.getInstance());
       final lesson = Lesson({
@@ -83,6 +95,7 @@ void main() {
             isarService: store,
             lesson: lesson,
             profile: profile,
+            sharingService: sharing,
           ),
         ),
       );
@@ -151,6 +164,58 @@ void main() {
       expect(store.creates, 2);
       expect(store.updates, 1);
       expect(store.updatedId, 12);
+
+      await tester.tap(find.byTooltip('More workspace options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share picture'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Save build'), findsNothing);
+      expect(tester.state(find.byType(EmbedUnity)), same(runtime));
+      expect(calls.where((c) => c[1] == 'BeginSession').length, 1);
+      expect(calls.lastWhere((c) => c[1] == 'SetPictureMode')[2], 'true');
+      sharing.pending = Completer<void>();
+      await tester.tap(find.widgetWithText(FilledButton, 'Share picture'));
+      await tester.pump();
+      final request = calls.lastWhere((c) => c[1] == 'RequestPicture')[2];
+      await emit({'messageType': 'PICTURE_READY', 'requestId': 'stale'});
+      expect(sharing.pictures, 0);
+      final picture = {
+        'messageType': 'PICTURE_READY',
+        'requestId': request,
+        'imageBase64': 'test image',
+      };
+      await emit(picture);
+      await emit(picture);
+      expect(sharing.pictures, 1);
+      sharing.pending!.complete();
+      await tester.pumpAndSettle();
+      expect(store.creates, 2);
+      expect(store.updates, 1);
+      expect(calls.where((c) => c[1] == 'AcknowledgeSave').length, 2);
+      await tester.tap(find.widgetWithText(FilledButton, 'Share picture'));
+      await tester.pump();
+      final failedRequest = calls.lastWhere((c) => c[1] == 'RequestPicture')[2];
+      await emit({'messageType': 'PICTURE_ERROR', 'requestId': failedRequest});
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Could not share the picture. Please retry.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Share picture'));
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Could not take the picture. Please retry.'),
+        findsOneWidget,
+      );
+      expect(calls.lastWhere((c) => c[1] == 'SetUiBlocked')[2], 'false');
+      await tester.tap(find.text('Keep building'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Save build'), findsOneWidget);
+      expect(find.text('Unsaved changes'), findsOneWidget);
+      expect(profile.stepForLesson('sandbox-test'), 1);
+      expect(tester.state(find.byType(EmbedUnity)), same(runtime));
+      expect(calls.lastWhere((c) => c[1] == 'SetPictureMode')[2], 'false');
       await tester.pumpWidget(const SizedBox());
       debugDefaultTargetPlatformOverride = null;
     },

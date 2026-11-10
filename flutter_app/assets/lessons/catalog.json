@@ -3,13 +3,69 @@
     "id": "basics",
     "title": "The Basics",
     "difficulty": "Easy",
-    "source": "Restored from the supplied UI and block controls.",
+    "source": "Expanded beginner guidance for the current BlockLab controls; original lesson ID retained.",
     "steps": [
       {
-        "text": "Drag a block from the library onto the grid. Select it in the workspace or hierarchy, then change its dimensions and color."
+        "title": "Find your way around",
+        "check": "Find the Shapes button beside the grid.",
+        "text": "The grid is your building area. Shapes contains new blocks; Objects lists blocks already in your build. This guide stays above the workspace."
       },
       {
-        "text": "Drag a block to move it. Use one finger on empty space to orbit, two fingers to pan, and pinch to zoom. Save your work before leaving."
+        "title": "Place your first Cube",
+        "check": "A Cube remains on the grid. Properties stays closed.",
+        "text": "Open Shapes. Press and hold Cube, then drag it sideways onto an empty part of the grid. Release when the preview is in place.",
+        "image": "assets/images/guides/shapes.png"
+      },
+      {
+        "title": "Tap to edit",
+        "check": "The Cube has a blue outline and its name appears in the panel.",
+        "text": "Tap the Cube and lift your finger without dragging. The properties panel opens. Size, Color, and Move are its three editing tabs.",
+        "image": "assets/images/guides/properties.png"
+      },
+      {
+        "title": "Make it taller",
+        "check": "The block becomes taller while its bottom stays on the grid.",
+        "text": "Choose Size. Height controls how tall the block is. Tap the plus button beside Height once; the value changes from 1 to 2."
+      },
+      {
+        "title": "Choose a color",
+        "check": "Your Cube shows the color you chose.",
+        "text": "Choose Color, then tap a colored swatch. More colors opens a larger picker. Color changes the selected block, not every block."
+      },
+      {
+        "title": "Move by dragging",
+        "check": "Moving the block does not reopen properties.",
+        "text": "Press the Cube and slide it to another place on the grid. Properties closes as dragging starts. Release to place the block; tap it again to edit."
+      },
+      {
+        "title": "Look around your build",
+        "check": "The view turns while the block stays in the same place.",
+        "text": "Drag one finger over empty grid space to turn the camera around your blocks. Starting on a block moves that block instead."
+      },
+      {
+        "title": "Zoom and pan",
+        "check": "You can inspect the block from a comfortable distance.",
+        "text": "Pinch two fingers together to zoom out; spread them to zoom in. Move two fingers together to pan the view sideways or up and down."
+      },
+      {
+        "title": "Find a block in Objects",
+        "check": "The same Cube is selected; the build still has one block.",
+        "text": "Open Objects and tap the block's name. This selects that existing block and opens properties. Objects does not create another block."
+      },
+      {
+        "title": "Undo and redo",
+        "check": "Undo reverses the last edit; Redo brings it back.",
+        "text": "Make a small size or color change, then tap Undo in the top toolbar. Open the toolbar's options menu and choose Redo to restore the change."
+      },
+      {
+        "title": "Save your build",
+        "check": "The toolbar confirms that the build is saved.",
+        "text": "Tap Save in the top toolbar. Wait until Saving changes to Saved on this device. Save again after making more changes."
+      },
+      {
+        "title": "Finish and reopen later",
+        "check": "You know how to add, tap, edit, move, and save a block.",
+        "text": "Choose Mark complete below when you finish practicing. Your saved creation is available in Works. Use Edit build there when you want to continue."
       }
     ]
   },
@@ -17,13 +73,79 @@
     "id": "dimensions",
     "title": "Dimensions and shapes",
     "difficulty": "Easy",
-    "source": "New restoration guidance: the supplied Lesson 2 had no working content.",
+    "source": "Expanded beginner guidance for the current BlockLab controls; original lesson ID retained.",
     "steps": [
       {
-        "text": "Create each shape: Cube, Triangular Prism, Cylinder, Trapezoid and Half Cylinder. Compare their width, height and length controls."
+        "title": "Understand the size controls",
+        "check": "Each control stretches the block in a different direction.",
+        "text": "Width changes a block across its base. Height changes it from bottom to top. Length changes it from front to back. Change one value at a time.",
+        "image": "assets/images/guides/properties.png"
       },
       {
-        "text": "Dimensions use the original prefab scale units. Width is the horizontal span, including for cylinders. Place blocks on flat support surfaces, then try undoing a resize."
+        "title": "Prepare a Cube",
+        "check": "Width, Height, and Length are visible.",
+        "text": "In an empty area, open Shapes and drag in a Cube. Release it, then tap it to open Size. Keep room around it for this exercise."
+      },
+      {
+        "title": "Change the width",
+        "check": "The Cube is wider, while Height and Length still show 1.",
+        "text": "Use the plus button or slider to set Width to 3. Width is a size setting for this shape; compare the result with its original value of 1."
+      },
+      {
+        "title": "Change the height",
+        "check": "The block is now wider and taller.",
+        "text": "Set Height to 2. The bottom stays in place as the block grows upward. Keep Width at 3 and Length at 1."
+      },
+      {
+        "title": "Make a rectangular block",
+        "check": "The values are Width 3, Height 2, and Length 2.",
+        "text": "Set Length to 2. Your starting Cube is now a rectangular block because its width, height, and length are not all equal. Turn the camera to see the depth."
+      },
+      {
+        "title": "Compare before and after",
+        "check": "Length returns to 1, then back to 2.",
+        "text": "Tap Undo once to reverse the length change. Then open the top options menu and choose Redo. Notice which dimension changes each time."
+      },
+      {
+        "title": "Try a Cylinder",
+        "check": "Width changes the round base; Height makes the Cylinder taller.",
+        "text": "Place a Cylinder apart from the Cube, then tap it. Set Width to 2 and Height to 3. A Cylinder has one width for its round base, so Length is hidden."
+      },
+      {
+        "title": "Try a Triangular Prism",
+        "check": "Its triangular end and flat faces differ from the Cube.",
+        "text": "Place a Triangular Prism in a clear area. Tap it and set Base Width to 3, Height to 2, and Length to 2. Look at it from the side."
+      },
+      {
+        "title": "Try a Trapezoid",
+        "check": "The shape keeps its tapered outline when resized.",
+        "text": "Place a Trapezoid nearby and tap it. Try Base Width 3, Height 2, and Length 2. Compare its narrower top with the shapes you already placed."
+      },
+      {
+        "title": "Try a Half Cylinder",
+        "check": "You can describe how this shape differs from a full Cylinder.",
+        "text": "Place a Half Cylinder in another clear area. Tap it and change Width, Height, and Length one at a time. Look for its curved side and flat cut face."
+      },
+      {
+        "title": "Practice stacking",
+        "check": "The small Cube rests above the larger Cube without sinking into it.",
+        "text": "Drag a new small Cube toward the first Cube's flat top. Watch the preview: release when it rests on top. Move it slightly if it remains on the grid."
+      },
+      {
+        "title": "Resize a supporting block",
+        "check": "The upper Cube stays supported after an accepted resize.",
+        "text": "Tap the larger Cube underneath and increase Height by 1. Blocks already resting on top move with it. If there is not enough room, the previous size is kept."
+      },
+      {
+        "title": "Use the move handles",
+        "check": "The handle moves one axis at a time and stops at obstacles or the ground.",
+        "text": "Tap a block and choose Move. Drag X or Z to move across the grid; drag Y to raise or lower it. Properties stays hidden during the drag; tap the block again to edit.",
+        "image": "assets/images/guides/move-handles.png"
+      },
+      {
+        "title": "Save your size experiment",
+        "check": "You have compared all five shapes and practiced resizing, stacking, and moving.",
+        "text": "Save the build and wait for Saved on this device. Choose Mark complete when you are ready. You can reopen it from Works or continue this lesson later."
       }
     ]
   },

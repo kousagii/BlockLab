@@ -98,6 +98,7 @@ public class LoadManager : MonoBehaviour
     }
     public void ClearScene(string unused)
     {
+        GetComponent<SaveManager>()?.SetPictureMode("false");
         foreach (var selection in FindObjectsOfType<SelectionManager>()) selection.DeselectCurrent();
         SelectionManager.isDraggingBlock = false;
         SelectionManager.UiBlocked = false;

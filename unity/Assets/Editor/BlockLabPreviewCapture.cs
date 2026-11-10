@@ -51,6 +51,7 @@ public static class BlockLabPreviewCapture
         if(Time.frameCount<_frame)return;
         try {
             if(_prepared) {
+                if(_index==0 || _index==4)CheckPictureCapture();
                 ScreenCapture.CaptureScreenshot(_path);
                 _prepared=false;_capturing=true;_frame=Time.frameCount+10;
                 return;
@@ -101,5 +102,31 @@ public static class BlockLabPreviewCapture
         EditorApplication.update-=Tick;
         if(result==0)Debug.Log("BLOCKLAB_PREVIEWS_PASSED");
         SessionState.SetInt(Result,result);EditorApplication.ExitPlaymode();
+    }
+
+    static void CheckPictureCapture() {
+        var save=UnityEngine.Object.FindObjectOfType<SaveManager>();
+        var camera=Camera.main;
+        var before=SaveManager.Capture();
+        var position=camera.transform.position;var rotation=camera.transform.rotation;
+        var previousTarget=camera.targetTexture;var previousActive=RenderTexture.active;
+        save.SetPictureMode("true");
+        try {
+            var bytes=SaveManager.CapturePictureBytes();
+            string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../docs/screenshots"));
+            File.WriteAllBytes(Path.Combine(output,"share-picture-"+(_index==4?"dark":"light")+".jpg"),bytes);
+            var image=new Texture2D(2,2);
+            if(!image.LoadImage(bytes) || image.width!=Screen.width || image.height!=Screen.height)
+                throw new Exception("Picture capture did not retain viewport resolution");
+            UnityEngine.Object.Destroy(image);
+            camera.transform.RotateAround(Vector3.zero,Vector3.up,35);
+            var changed=SaveManager.CapturePictureBytes();
+            if(bytes.SequenceEqual(changed))throw new Exception("Picture ignored the chosen camera angle");
+            if(camera.targetTexture!=previousTarget || RenderTexture.active!=previousActive || SaveManager.Capture().revision!=before.revision)
+                throw new Exception("Picture capture changed editor render targets or scene state");
+            Debug.Log("BLOCKLAB_PICTURE_CHECK_PASSED: full-resolution capture follows angle without modifying scene.");
+        } finally {
+            camera.transform.SetPositionAndRotation(position,rotation);save.SetPictureMode("false");
+        }
     }
 }
