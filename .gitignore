@@ -23,7 +23,14 @@ flutter_app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistra
 *.[mM][dD]
 !/README.md
 /.cleanup-backup/
-/docs/screenshots/
+# Include the README gallery; ignore other generated previews.
+/docs/screenshots/*
+!/docs/screenshots/home-light.png
+!/docs/screenshots/lesson-light.png
+!/docs/screenshots/sandbox-shapes-light.png
+!/docs/screenshots/sandbox-properties-light.png
+!/docs/screenshots/sandbox-move-dark.png
+!/docs/screenshots/settings-dark.png
 *.apk
 *.aab
 *.iml

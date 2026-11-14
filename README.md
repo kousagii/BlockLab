@@ -11,6 +11,18 @@ BlockLab is an Android app for learning and creating with 3D building blocks. It
 - Choose a camera angle and share a picture of your build.
 - Choose Light, Dark or System appearance.
 
+## Screenshots
+
+| Home | Guided lessons | Shape library |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/home-light.png" alt="Home screen with shortcuts to building, lessons and recent works" width="220"> | <img src="docs/screenshots/lesson-light.png" alt="A beginner lesson with step-by-step instructions and navigation" width="220"> | <img src="docs/screenshots/sandbox-shapes-light.png" alt="Unity sandbox shape library with five building block types" width="220"> |
+
+| Resize blocks | X/Y/Z move handles | Dark mode settings |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/sandbox-properties-light.png" alt="Selected cube with compact width, height and length controls" width="220"> | <img src="docs/screenshots/sandbox-move-dark.png" alt="Dark sandbox with colored X, Y and Z handles for moving a block" width="220"> | <img src="docs/screenshots/settings-dark.png" alt="Dark settings screen with System, Light and Dark appearance options" width="220"> |
+
+*Flutter UI previews and Unity Editor captures with sample content.*
+
 ## Build and run
 
 The build scripts support **Windows with PowerShell 7**. To run the APK, use an **ARM64 Android device running Android 10 or later**.
